@@ -338,6 +338,28 @@ final class BehaviorTests: XCTestCase {
         XCTAssertTrue(guides.contains { $0.kind == .edge && $0.position == 20 })
     }
 
+    func testResizeEdgeUnderPointerDoesNotGrow() {
+        var editor = Editor()
+        let original = GridRect(x: 0, y: 0, width: 10, height: 4)
+        let rect = editor.addRectangle(frame: original, border: .single, fill: nil, shadow: nil)
+        let right = editor.resizedFrame(original: original, handle: .right, to: GridPoint(x: 10, y: 2))
+        XCTAssertEqual(right, original)
+        _ = editor.resizeObject(rect, to: right, snap: false)
+        XCTAssertEqual(editor.object(rect)?.frame, original)
+
+        let bottom = editor.resizedFrame(original: original, handle: .bottom, to: GridPoint(x: 4, y: 4))
+        XCTAssertEqual(bottom, original)
+        let corner = editor.resizedFrame(original: original, handle: .bottomRight, to: GridPoint(x: 10, y: 4))
+        XCTAssertEqual(corner, original)
+        XCTAssertEqual(editor.resizedFrame(original: original, handle: .left, to: GridPoint(x: 0, y: 1)), original)
+        XCTAssertEqual(editor.resizedFrame(original: original, handle: .top, to: GridPoint(x: 3, y: 0)), original)
+
+        let grown = editor.resizedFrame(original: original, handle: .right, to: GridPoint(x: 14, y: 2))
+        XCTAssertEqual(grown, GridRect(x: 0, y: 0, width: 14, height: 4))
+        _ = editor.resizeObject(rect, to: grown, snap: false)
+        XCTAssertEqual(editor.object(rect)?.frame.width, 14)
+    }
+
     func testLockedHiddenAndZOrder() {
         var editor = Editor()
         let back = editor.addRectangle(frame: GridRect(x: 0, y: 0, width: 4, height: 3), border: nil, fill: "A", shadow: nil)
@@ -465,6 +487,58 @@ final class BehaviorTests: XCTestCase {
         for name in BundledFonts.names {
             _ = try FigletFont.bundled(name)
         }
+    }
+
+    func testFigletLettersBeyondHI() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        for name in BundledFonts.names {
+            let font = try FigletFont.bundled(name)
+            let disk = try FigletFont.load(contentsOf: root.appendingPathComponent("Fonts/\(name).flf"))
+            XCTAssertEqual(disk.glyphs, font.glyphs)
+            for code in 32...126 {
+                let character = Character(UnicodeScalar(code)!)
+                let glyph = try XCTUnwrap(font.glyphs[character])
+                XCTAssertEqual(glyph.count, 4, "\(name) \(character)")
+                let width = glyph.map(\.count).max() ?? 0
+                XCTAssertEqual(glyph.map(\.count), Array(repeating: width, count: 4))
+                let placeholder = glyph.dropFirst().allSatisfy { $0.trimmingCharacters(in: .whitespaces) == "." }
+                XCTAssertFalse(placeholder, "\(name) \(character) is a placeholder")
+            }
+            for code in Array(65...90) + Array(97...122) {
+                let character = Character(UnicodeScalar(code)!)
+                let glyph = try XCTUnwrap(font.glyphs[character])
+                XCTAssertFalse(glyph.joined().contains(character), "\(name) \(character) is the literal character")
+            }
+            let a = try XCTUnwrap(font.glyphs["A"])
+            let w = try XCTUnwrap(font.glyphs["W"])
+            XCTAssertGreaterThanOrEqual(a[0].count, 3)
+            XCTAssertGreaterThanOrEqual(w[0].count, 5)
+            XCTAssertGreaterThanOrEqual(a.joined().filter { $0 != " " }.count, 4)
+            XCTAssertGreaterThanOrEqual(w.joined().filter { $0 != " " }.count, 4)
+            XCTAssertNotEqual(a[0].trimmingCharacters(in: .whitespaces), "A")
+            XCTAssertNotEqual(w[0].trimmingCharacters(in: .whitespaces), "W")
+
+            var editor = Editor()
+            _ = editor.addBanner(
+                frame: GridRect(x: 0, y: 0, width: 24, height: 6),
+                text: "AW",
+                fontName: name,
+                alignment: .left
+            )
+            let rendered = editor.render().plainText
+            XCTAssertFalse(rendered.contains("A"))
+            XCTAssertFalse(rendered.contains("W"))
+            let ink = rendered.filter { $0 != " " && $0 != "\n" }
+            XCTAssertGreaterThan(ink.count, 6)
+        }
+        let standardA = try FigletFont.bundled("standard").glyphs["A"]
+        let slimA = try FigletFont.bundled("slim").glyphs["A"]
+        let blockA = try FigletFont.bundled("block").glyphs["A"]
+        XCTAssertNotEqual(standardA, slimA)
+        XCTAssertNotEqual(standardA, blockA)
     }
 
     func testCustomFigletFontFile() throws {

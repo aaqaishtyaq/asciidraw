@@ -483,12 +483,12 @@ public struct Editor: Equatable {
         var maxY = original.maxY
         switch handle {
         case .left, .topLeft, .bottomLeft: minX = cell.x
-        case .right, .topRight, .bottomRight: maxX = cell.x + 1
+        case .right, .topRight, .bottomRight: maxX = cell.x
         case .top, .bottom: break
         }
         switch handle {
         case .top, .topLeft, .topRight: minY = cell.y
-        case .bottom, .bottomLeft, .bottomRight: maxY = cell.y + 1
+        case .bottom, .bottomLeft, .bottomRight: maxY = cell.y
         case .left, .right: break
         }
         let x = min(minX, maxX - 1)
