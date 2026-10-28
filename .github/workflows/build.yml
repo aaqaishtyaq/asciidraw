@@ -1,0 +1,73 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: asciidraw-release
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    name: macOS app
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select the newest Xcode
+        run: |
+          python3 scripts/select-xcode.py
+          xcode-select -p
+          xcodebuild -version
+          swift --version
+
+      - name: Test
+        run: swift test
+
+      - name: Build the app and the command
+        run: ./scripts/build-app.sh
+
+      - name: Zip the download
+        run: ./scripts/stage-download.sh "$GITHUB_WORKSPACE/AsciiDraw.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AsciiDraw-macOS
+          path: AsciiDraw.zip
+          if-no-files-found: error
+
+      - name: Publish the latest release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          SHORT="${GITHUB_SHA::7}"
+          TAG="build-${SHORT}"
+          NOTES="$(mktemp)"
+          {
+            echo "AsciiDraw for macOS 26 or later (Apple silicon)."
+            echo
+            echo "This build is ad-hoc signed and not notarized. Unzip it, move AsciiDraw.app to Applications, then right-click the app and choose Open the first time."
+            echo
+            echo "If macOS says the app is damaged, run: xattr -dr com.apple.quarantine /Applications/AsciiDraw.app"
+            echo
+            echo "The zip also includes the asciidraw command, which prints a saved .asciidraw document."
+            echo
+            echo "Commit: ${GITHUB_SHA}"
+          } > "$NOTES"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" AsciiDraw.zip --clobber
+            gh release edit "$TAG" --latest --notes-file "$NOTES"
+          else
+            gh release create "$TAG" AsciiDraw.zip \
+              --target "$GITHUB_SHA" \
+              --latest \
+              --title "AsciiDraw ${SHORT}" \
+              --notes-file "$NOTES"
+          fi
+          rm -f "$NOTES"

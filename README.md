@@ -2,6 +2,16 @@
 
 Native macOS diagram editor for monospaced character art. Shapes live on a free character canvas and render to one grid: rectangles, diamonds, text, lines, and FIGlet banners.
 
+[Download for macOS](https://github.com/aaqaishtyaq/asciidraw/releases/latest/download/AsciiDraw.zip) · [Website](https://aaqaishtyaq.github.io/asciidraw/)
+
+The download is an ad-hoc signed Apple silicon build for macOS 26 or later. Right-click AsciiDraw.app and choose Open the first time. The zip also includes the `asciidraw` command. [Install notes](https://aaqaishtyaq.github.io/asciidraw/#install).
+
+![AsciiDraw editing a box, a line, a diamond, and a banner](docs/images/editor.png)
+
+![A selected banner and the inspector](docs/images/inspector.png)
+
+![AsciiDraw in dark mode](docs/images/dark.png)
+
 ## Build
 
 ```sh
@@ -9,6 +19,8 @@ swift test
 scripts/build-app.sh
 open build/AsciiDraw.app
 ```
+
+`scripts/build-app.sh` writes `build/AsciiDraw.app` and `build/asciidraw`. GitHub Actions runs the same script on `macos-26` and publishes `AsciiDraw.zip` on the latest release. The site in `docs/` is GitHub Pages.
 
 The `asciidraw` command prints a saved document or writes recoverable JSON:
 

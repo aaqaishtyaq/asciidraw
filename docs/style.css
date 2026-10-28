@@ -1,0 +1,295 @@
+:root {
+  --paper: #f3f0e8;
+  --paper-2: #e7e1d4;
+  --ink: #1c1915;
+  --muted: #5e584e;
+  --line: #d9d2c3;
+  --button: #1c2430;
+  --button-ink: #f7f4ee;
+  --night: #16181b;
+  --night-ink: #f4f0e7;
+  --night-muted: #b7b1a6;
+  --shadow: 0 18px 50px rgba(40, 32, 18, 0.12);
+  --measure: 68ch;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 17px;
+  line-height: 1.5;
+  overflow-x: clip;
+}
+
+img { max-width: 100%; height: auto; display: block; }
+
+a { color: inherit; }
+
+h1, h2, h3 {
+  font-family: "New York", "Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+h1 { font-size: clamp(2.7rem, 6.4vw, 4.7rem); margin: 0; }
+h2 { font-size: clamp(1.8rem, 3vw, 2.5rem); margin: 0 0 0.6rem; }
+h3 { font-size: 1.25rem; margin: 0 0 0.4rem; }
+
+p { margin: 0; }
+
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 24px;
+  background: color-mix(in srgb, var(--paper) 88%, transparent);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid transparent;
+}
+
+.mark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 650;
+  text-decoration: none;
+  letter-spacing: -0.02em;
+}
+
+.mark img { width: 28px; height: 28px; border-radius: 7px; }
+
+.links {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  font-size: 0.95rem;
+}
+
+.links a { text-decoration: none; }
+.links a:hover { text-decoration: underline; }
+.links a.button:hover { text-decoration: none; }
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--button);
+  color: var(--button-ink);
+  text-decoration: none;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.button.big { padding: 12px 18px; font-size: 1rem; }
+
+.button.quiet {
+  background: transparent;
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+a:focus-visible, .button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+.hero, .band, .install, .faq, .foot, .cards {
+  width: auto;
+  max-width: 1120px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+.hero { padding-top: 56px; padding-bottom: 28px; }
+
+.eyebrow {
+  margin: 0 0 14px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lede {
+  max-width: 40rem;
+  margin-top: 18px;
+  font-size: 1.2rem;
+  color: var(--muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+.fine {
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.shot {
+  margin: 36px 0 0;
+}
+
+.shot img, .split img, .night img {
+  width: 100%;
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  border: 1px solid rgba(28, 25, 21, 0.08);
+}
+
+.shot figcaption, .split figcaption {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.cards {
+  margin-top: 28px;
+  margin-bottom: 10px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.card {
+  background: color-mix(in srgb, white 55%, var(--paper));
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 20px 20px 22px;
+}
+
+.card p { color: var(--muted); margin-top: 6px; }
+
+.band, .install, .faq { padding-top: 64px; padding-bottom: 64px; }
+
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 36px;
+  align-items: center;
+}
+
+.split.reverse { grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr); }
+.split.reverse .copy { order: 2; }
+
+.copy p + p, .gap { margin-top: 12px; }
+.copy .lede, .copy p { color: var(--muted); }
+
+.list {
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink);
+}
+
+.list li {
+  padding: 6px 0 6px 0;
+  border-top: 1px solid var(--line);
+}
+
+.list li:first-child { border-top: 0; }
+
+.night {
+  background: var(--night);
+  color: var(--night-ink);
+  padding-top: 72px;
+  padding-bottom: 72px;
+}
+
+.night .split {
+  width: auto;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding-left: 24px;
+  padding-right: 24px;
+}
+.night p, .night figcaption { color: var(--night-muted); }
+.night h2 { color: var(--night-ink); }
+.night img { border-color: rgba(255, 255, 255, 0.08); box-shadow: none; }
+
+.export-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px 40px;
+  margin-top: 8px;
+}
+
+code, pre {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.86rem;
+}
+
+code {
+  background: color-mix(in srgb, var(--paper-2) 70%, white);
+  padding: 0.1em 0.35em;
+  border-radius: 5px;
+}
+
+.night code { background: #2a2d31; color: var(--night-ink); }
+
+pre {
+  margin: 16px 0 0;
+  padding: 16px 18px;
+  max-width: 100%;
+  overflow: auto;
+  background: #241f1a;
+  color: #f4f0e7;
+  border-radius: 12px;
+  line-height: 1.45;
+}
+
+pre code { background: transparent; padding: 0; color: inherit; }
+
+.steps { margin: 18px 0 0; padding-left: 1.2rem; }
+.steps li { margin: 8px 0; }
+.steps li::marker { color: var(--muted); }
+
+.faq dl { margin: 8px 0 0; }
+.faq dt { font-weight: 650; margin-top: 18px; }
+.faq dd { margin: 4px 0 0; color: var(--muted); }
+
+.foot {
+  padding-top: 28px;
+  padding-bottom: 48px;
+  color: var(--muted);
+  font-size: 0.92rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.foot a { color: var(--ink); }
+
+@media (max-width: 860px) {
+  .cards, .split, .split.reverse, .export-grid { grid-template-columns: 1fr; }
+  .split.reverse .copy { order: 0; }
+  .nav { padding: 12px 16px; }
+  .links { gap: 0; }
+  .links a:not(.button) { display: none; }
+  .hero { padding-top: 28px; }
+  .band, .install, .faq, .night { padding-top: 48px; padding-bottom: 48px; }
+  .foot { flex-direction: column; }
+}
