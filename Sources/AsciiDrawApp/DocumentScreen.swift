@@ -478,9 +478,7 @@ private final class ToolbarGlassView: NSView {
         super.init(frame: NSRect(x: 0, y: 0, width: fixedSize?.width ?? 80, height: 32))
         glass.style = .regular
         glass.cornerRadius = 16
-        if #available(macOS 27.0, *) {
-            glass.effectIsInteractive = true
-        }
+        enableInteractiveGlass(glass)
         glass.contentView = host
         glass.translatesAutoresizingMaskIntoConstraints = false
         addSubview(glass)
@@ -508,6 +506,16 @@ private final class ToolbarGlassView: NSView {
             host.frame = glass.bounds
         }
     }
+}
+
+/// macOS 27 adds `effectIsInteractive`. The macOS 26 SDK does not declare it,
+/// so the GitHub runner can still compile, and the setter is a no-op before 27.
+private func enableInteractiveGlass(_ glass: NSGlassEffectView) {
+    let setter = NSSelectorFromString("setEffectIsInteractive:")
+    guard glass.responds(to: setter) else { return }
+    typealias Setter = @convention(c) (AnyObject, Selector, Bool) -> Void
+    let apply = unsafeBitCast(glass.method(for: setter), to: Setter.self)
+    apply(glass, setter, true)
 }
 
 /// Content-sized liquid glass. SwiftUI glass styles inside a split column loop Auto Layout.
@@ -544,9 +552,7 @@ private final class GlassPillView: NSView {
         super.init(frame: NSRect(x: 0, y: 0, width: 160, height: 36))
         glass.style = .regular
         glass.cornerRadius = 18
-        if #available(macOS 27.0, *) {
-            glass.effectIsInteractive = true
-        }
+        enableInteractiveGlass(glass)
         glass.contentView = host
         glass.translatesAutoresizingMaskIntoConstraints = false
         wantsLayer = true
