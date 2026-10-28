@@ -22,20 +22,39 @@
       <a href="#mcp">MCP</a>
       <a href="#install">Install</a>
       <a href="https://github.com/aaqaishtyaq/asciidraw">GitHub</a>
-      <a class="button" href="https://github.com/aaqaishtyaq/asciidraw/releases/latest/download/AsciiDraw.zip">Download</a>
+      <a class="button" href="https://github.com/aaqaishtyaq/asciidraw/releases/latest/download/AsciiDraw.dmg">Download</a>
     </nav>
   </header>
 
   <main>
     <section class="hero">
-      <p class="eyebrow">macOS 26 · Apple silicon · free</p>
-      <h1>ASCII art, drawn like a Mac app.</h1>
-      <p class="lede">Boxes, lines, diamonds, and FIGlet banners live on a character grid. The picture is text, so it drops into a README, a source comment, or a terminal.</p>
-      <div class="actions">
-        <a class="button big" href="https://github.com/aaqaishtyaq/asciidraw/releases/latest/download/AsciiDraw.zip">Download for macOS</a>
-        <a class="button quiet big" href="https://github.com/aaqaishtyaq/asciidraw">View source</a>
+      <div class="hero-grid">
+        <div>
+          <h1>ASCII art, drawn like a Mac app.</h1>
+          <p class="lede">Boxes, lines, diamonds, and FIGlet banners live on a character grid. The picture is text, so it drops into a README, a source comment, or a terminal.</p>
+          <div class="actions">
+            <a class="button big" href="https://github.com/aaqaishtyaq/asciidraw/releases/latest/download/AsciiDraw.dmg">Download for macOS</a>
+            <a class="button quiet big" href="https://github.com/aaqaishtyaq/asciidraw">View source</a>
+          </div>
+          <p class="fine">Open the disk image and drag AsciiDraw to Applications. The build is ad-hoc signed. Right-click the app and choose Open the first time. <a href="#install">Install notes</a>.</p>
+        </div>
+        <figure class="art-wrap">
+          <pre class="art" aria-label="ASCII diagram exported from AsciiDraw. Editor points at Canvas, and Canvas points at README.">┌──────────────┐        ┌──────────────┐
+│              │        │              │
+│    Editor    ┼────────>    Canvas    │
+│              │        │              │
+└──────────────┘        └───────┼──────┘
+                                │
+                                │
+                                │
+                        ┌───────v──────┐
+                        │              │
+                        │    README    │
+                        │              │
+                        └──────────────┘</pre>
+          <figcaption>Exported from AsciiDraw. These are the characters, not a picture of them.</figcaption>
+        </figure>
       </div>
-      <p class="fine">The build is ad-hoc signed, not notarized. The first open is a right-click, then Open. <a href="#install">Install notes</a>.</p>
       <figure class="shot">
         <img src="images/editor.png" alt="AsciiDraw on macOS, with a bordered box reading AsciiDraw, a line into a diamond, and a FIGlet banner on a dotted character grid." width="1400" height="860">
         <figcaption>The welcome document: a box, a line, a diamond, and a banner, with rulers along the top and left.</figcaption>
@@ -105,9 +124,9 @@
       <div class="export-grid">
         <div>
           <p>Documents are JSON with the extension <code>.asciidraw</code>. The Export menu writes plain text, a shell comment, a Ruby comment, a Python comment, PNG, SVG, or JSON. Copy as Text puts the grid on the pasteboard.</p>
-          <p class="gap">The download includes the <code>asciidraw</code> command. It prints a saved document, or writes the JSON back out.</p>
-          <pre><code>asciidraw Diagram.asciidraw
-asciidraw --json Diagram.asciidraw</code></pre>
+          <p class="gap">The <code>asciidraw</code> command lives inside the app. It prints a saved document, or writes the JSON back out.</p>
+          <pre><code>/Applications/AsciiDraw.app/Contents/SharedSupport/asciidraw Diagram.asciidraw
+/Applications/AsciiDraw.app/Contents/SharedSupport/asciidraw --json Diagram.asciidraw</code></pre>
         </div>
         <div>
           <h3>In the app</h3>
@@ -141,16 +160,16 @@ asciidraw --json Diagram.asciidraw</code></pre>
 
     <section class="install" id="install">
       <p class="eyebrow">Install</p>
-      <h2>Download the latest build.</h2>
-      <p>GitHub Actions builds AsciiDraw on every push to <code>main</code>, on a <code>macos-26</code> Apple silicon runner, and publishes <code>AsciiDraw.zip</code> on the latest release.</p>
+      <h2>Drag it to Applications.</h2>
+      <p>GitHub Actions builds AsciiDraw on every push to <code>main</code> and publishes a disk image on the latest release.</p>
       <ol class="steps">
-        <li><a href="https://github.com/aaqaishtyaq/asciidraw/releases/latest/download/AsciiDraw.zip">Download AsciiDraw.zip</a>.</li>
-        <li>Unzip it. You get <code>AsciiDraw.app</code>, the <code>asciidraw</code> command, and a short readme.</li>
-        <li>Move <code>AsciiDraw.app</code> to Applications. Put <code>asciidraw</code> on your <code>PATH</code> if you want the command.</li>
+        <li><a href="https://github.com/aaqaishtyaq/asciidraw/releases/latest/download/AsciiDraw.dmg">Download AsciiDraw.dmg</a>.</li>
+        <li>Open it and drag AsciiDraw onto the Applications folder.</li>
         <li>The app is ad-hoc signed and not notarized. Right-click it and choose Open the first time.</li>
+        <li>The <code>asciidraw</code> command is inside the app, at <code>Contents/SharedSupport/asciidraw</code>. Symlink it onto your <code>PATH</code> if you want the short name.</li>
       </ol>
       <p class="fine gap">If macOS says the app is damaged, the download was quarantined. In Terminal: <code>xattr -dr com.apple.quarantine /Applications/AsciiDraw.app</code></p>
-      <p class="fine gap">Requires macOS 26 or later. The published build is Apple silicon. To build both the app and the command yourself: <code>swift test</code>, then <code>scripts/build-app.sh</code>.</p>
+      <p class="fine gap">Requires macOS 26 or later. The published disk image is Apple silicon. To build it yourself: <code>swift test</code>, then <code>scripts/build-app.sh</code>.</p>
     </section>
 
     <section class="faq" id="faq">
@@ -159,7 +178,7 @@ asciidraw --json Diagram.asciidraw</code></pre>
         <dt>Is it free?</dt>
         <dd>Yes. There is no license and no store. The source is on GitHub.</dd>
         <dt>Which Macs can run it?</dt>
-        <dd>macOS 26 or later. The release zip is built for Apple silicon. An Intel Mac can still build it from source on macOS 26.</dd>
+        <dd>macOS 26 or later. The disk image is built for Apple silicon. An Intel Mac can still build it from source on macOS 26.</dd>
         <dt>Why does the first open need a right-click?</dt>
         <dd>The continuous build is signed ad-hoc. It is not notarized with an Apple Developer ID, so Gatekeeper does not treat it as a normal download.</dd>
         <dt>How many FIGlet fonts are included?</dt>

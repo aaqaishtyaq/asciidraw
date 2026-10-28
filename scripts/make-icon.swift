@@ -1,98 +1,65 @@
 import AppKit
 
-let size = 1024
-let canvas = NSRect(x: 0, y: 0, width: size, height: size)
-let sheet = canvas.insetBy(dx: 168, dy: 188)
+// The icon is this picture, set in Menlo. A capital A, centered.
+let lines = [
+    "   #   ",
+    "  # #  ",
+    " #   # ",
+    "#######",
+    "#     #",
+    "#     #",
+]
 
-let image = NSImage(size: canvas.size)
-image.lockFocus()
+let size = CGFloat(Int(CommandLine.arguments.dropFirst().first ?? "1024") ?? 1024)
+let pixels = Int(size)
+let columns = CGFloat(lines.map(\.count).max() ?? 1)
+let rows = CGFloat(lines.count)
+let fontSize = size * 0.96 / max(columns * 0.60, rows)
+let font = NSFont(name: "Menlo-Bold", size: fontSize) ?? NSFont.monospacedSystemFont(ofSize: fontSize, weight: .bold)
+let attributes: [NSAttributedString.Key: Any] = [
+    .font: font,
+    .foregroundColor: NSColor(srgbRed: 0.945, green: 0.955, blue: 0.965, alpha: 1),
+]
+let sample = ("M" as NSString).size(withAttributes: attributes)
+let lineHeight = sample.height * 0.78
+let gridW = sample.width * columns
+let gridH = lineHeight * rows
+let originX = (size - gridW) / 2
+let originY = (size - gridH) / 2
 
-NSGradient(colors: [
-    NSColor(srgbRed: 0.17, green: 0.21, blue: 0.25, alpha: 1),
-    NSColor(srgbRed: 0.08, green: 0.10, blue: 0.12, alpha: 1),
-])!.draw(in: canvas, angle: -90)
-
-NSColor.black.withAlphaComponent(0.30).setFill()
-NSBezierPath(roundedRect: sheet.offsetBy(dx: 0, dy: -16), xRadius: 40, yRadius: 40).fill()
-
-let paper = NSColor(srgbRed: 0.97, green: 0.955, blue: 0.925, alpha: 1)
-let ink = NSColor(srgbRed: 0.11, green: 0.12, blue: 0.13, alpha: 1)
-paper.setFill()
-let sheetPath = NSBezierPath(roundedRect: sheet, xRadius: 40, yRadius: 40)
-sheetPath.fill()
-
-NSGraphicsContext.current?.saveGraphicsState()
-sheetPath.addClip()
-
-NSColor(srgbRed: 0.90, green: 0.88, blue: 0.84, alpha: 1).setFill()
-NSRect(x: sheet.minX, y: sheet.maxY - 86, width: sheet.width, height: 86).fill()
-
-let ticks = NSBezierPath()
-ticks.lineWidth = 4
-var tickX = sheet.minX + 34
-while tickX < sheet.maxX - 16 {
-    let major = abs(tickX - (sheet.minX + 34)).truncatingRemainder(dividingBy: 108) < 8
-    let length: CGFloat = major ? 48 : 26
-    ticks.move(to: NSPoint(x: tickX, y: sheet.maxY - 16))
-    ticks.line(to: NSPoint(x: tickX, y: sheet.maxY - 16 - length))
-    tickX += 36
+guard let rep = NSBitmapImageRep(
+    bitmapDataPlanes: nil,
+    pixelsWide: pixels,
+    pixelsHigh: pixels,
+    bitsPerSample: 8,
+    samplesPerPixel: 4,
+    hasAlpha: true,
+    isPlanar: false,
+    colorSpaceName: .deviceRGB,
+    bytesPerRow: 0,
+    bitsPerPixel: 0
+) else {
+    fputs("Could not allocate the icon.\n", stderr)
+    exit(1)
 }
-NSColor(srgbRed: 0.45, green: 0.44, blue: 0.41, alpha: 1).setStroke()
-ticks.stroke()
+rep.size = NSSize(width: size, height: size)
 
-let dot = NSColor(srgbRed: 0.55, green: 0.56, blue: 0.58, alpha: 0.45)
-var dotY = sheet.minY + 40
-while dotY < sheet.maxY - 110 {
-    var dotX = sheet.minX + 42
-    while dotX < sheet.maxX - 30 {
-        dot.setFill()
-        NSBezierPath(ovalIn: NSRect(x: dotX, y: dotY, width: 8, height: 8)).fill()
-        dotX += 40
-    }
-    dotY += 40
+NSGraphicsContext.saveGraphicsState()
+NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+NSColor(srgbRed: 0.067, green: 0.071, blue: 0.086, alpha: 1).setFill()
+NSBezierPath(rect: NSRect(x: 0, y: 0, width: size, height: size)).fill()
+for (row, line) in lines.enumerated() {
+    let point = NSPoint(
+        x: originX,
+        y: originY + (rows - 1 - CGFloat(row)) * lineHeight
+    )
+    (line as NSString).draw(at: point, withAttributes: attributes)
 }
+NSGraphicsContext.restoreGraphicsState()
 
-let frame = NSRect(x: sheet.minX + 72, y: sheet.minY + 72, width: sheet.width - 144, height: sheet.height - 210)
-ink.setStroke()
-let box = NSBezierPath(rect: frame)
-box.lineWidth = 30
-box.lineJoinStyle = .miter
-box.stroke()
-
-let split = NSBezierPath()
-split.move(to: NSPoint(x: frame.minX, y: frame.midY))
-split.line(to: NSPoint(x: frame.maxX, y: frame.midY))
-split.lineWidth = 24
-split.stroke()
-
-ink.setFill()
-let gem = NSBezierPath()
-let gemCenter = NSPoint(x: frame.minX + 124, y: frame.minY + frame.height * 0.75)
-let gemRadius: CGFloat = 54
-gem.move(to: NSPoint(x: gemCenter.x, y: gemCenter.y + gemRadius))
-gem.line(to: NSPoint(x: gemCenter.x + gemRadius, y: gemCenter.y))
-gem.line(to: NSPoint(x: gemCenter.x, y: gemCenter.y - gemRadius))
-gem.line(to: NSPoint(x: gemCenter.x - gemRadius, y: gemCenter.y))
-gem.close()
-gem.fill()
-
-let arrowY = frame.minY + frame.height * 0.25
-let shaft = NSBezierPath()
-shaft.lineWidth = 28
-shaft.lineCapStyle = .butt
-shaft.move(to: NSPoint(x: frame.minX + 86, y: arrowY))
-shaft.line(to: NSPoint(x: frame.maxX - 110, y: arrowY))
-shaft.stroke()
-let head = NSBezierPath()
-head.move(to: NSPoint(x: frame.maxX - 168, y: arrowY + 50))
-head.line(to: NSPoint(x: frame.maxX - 64, y: arrowY))
-head.line(to: NSPoint(x: frame.maxX - 168, y: arrowY - 50))
-head.close()
-head.fill()
-
-NSGraphicsContext.current?.restoreGraphicsState()
-image.unlockFocus()
-
-let bitmap = NSBitmapImageRep(data: image.tiffRepresentation!)!
-let png = bitmap.representation(using: .png, properties: [:])!
-try png.write(to: URL(fileURLWithPath: CommandLine.arguments[1]))
+guard let png = rep.representation(using: .png, properties: [:]) else {
+    fputs("Could not encode the icon.\n", stderr)
+    exit(1)
+}
+let output = CommandLine.arguments.count > 2 ? CommandLine.arguments[2] : "/tmp/asciidraw-icon.png"
+try png.write(to: URL(fileURLWithPath: output))

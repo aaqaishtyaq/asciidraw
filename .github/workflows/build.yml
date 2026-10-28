@@ -32,13 +32,13 @@ jobs:
       - name: Build the app and the command
         run: ./scripts/build-app.sh
 
-      - name: Zip the download
-        run: ./scripts/stage-download.sh "$GITHUB_WORKSPACE/AsciiDraw.zip"
+      - name: Build the disk image
+        run: ./scripts/stage-download.sh "$GITHUB_WORKSPACE/AsciiDraw.dmg"
 
       - uses: actions/upload-artifact@v4
         with:
           name: AsciiDraw-macOS
-          path: AsciiDraw.zip
+          path: AsciiDraw.dmg
           if-no-files-found: error
 
       - name: Publish the latest release
@@ -52,19 +52,19 @@ jobs:
           {
             echo "AsciiDraw for macOS 26 or later (Apple silicon)."
             echo
-            echo "This build is ad-hoc signed and not notarized. Unzip it, move AsciiDraw.app to Applications, then right-click the app and choose Open the first time."
+            echo "This build is ad-hoc signed and not notarized. Open the disk image and drag AsciiDraw to Applications, then right-click the app and choose Open the first time."
             echo
             echo "If macOS says the app is damaged, run: xattr -dr com.apple.quarantine /Applications/AsciiDraw.app"
             echo
-            echo "The zip also includes the asciidraw command, which prints a saved .asciidraw document."
+            echo "The asciidraw command is inside the app at Contents/SharedSupport/asciidraw. It prints a saved .asciidraw document."
             echo
             echo "Commit: ${GITHUB_SHA}"
           } > "$NOTES"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" AsciiDraw.zip --clobber
+            gh release upload "$TAG" AsciiDraw.dmg --clobber
             gh release edit "$TAG" --latest --notes-file "$NOTES"
           else
-            gh release create "$TAG" AsciiDraw.zip \
+            gh release create "$TAG" AsciiDraw.dmg \
               --target "$GITHUB_SHA" \
               --latest \
               --title "AsciiDraw ${SHORT}" \

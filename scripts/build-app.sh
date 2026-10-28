@@ -26,17 +26,20 @@ if cmp -s "$ROOT/build/app-binary" "$ROOT/build/cli-binary"; then
 fi
 APP="$ROOT/build/AsciiDraw.app"
 rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/Fonts"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/Fonts" "$APP/Contents/SharedSupport"
 cp "$ROOT/build/app-binary" "$APP/Contents/MacOS/AsciiDraw"
 cp "$ROOT/build/mcp-binary" "$APP/Contents/MacOS/asciidraw-mcp"
-# The CLI stays beside the app. Inside Contents/MacOS its name would collide
-# with AsciiDraw on a case-insensitive volume.
+# SharedSupport, not MacOS. On a case-insensitive volume the name asciidraw
+# would replace the AsciiDraw executable if both lived in Contents/MacOS.
+cp "$ROOT/build/cli-binary" "$APP/Contents/SharedSupport/asciidraw"
 cp "$ROOT/build/cli-binary" "$ROOT/build/asciidraw"
 rm -f "$ROOT/build/app-binary" "$ROOT/build/mcp-binary" "$ROOT/build/cli-binary"
-chmod +x "$APP/Contents/MacOS/AsciiDraw" "$APP/Contents/MacOS/asciidraw-mcp" "$ROOT/build/asciidraw"
+chmod +x "$APP/Contents/MacOS/AsciiDraw" "$APP/Contents/MacOS/asciidraw-mcp" \
+  "$APP/Contents/SharedSupport/asciidraw" "$ROOT/build/asciidraw"
 cp "$ROOT/App/Info.plist" "$APP/Contents/Info.plist"
 cp "$ROOT/App/AsciiDraw.icns" "$APP/Contents/Resources/AsciiDraw.icns"
 cp "$ROOT/Fonts/"*.flf "$APP/Contents/Resources/Fonts/"
+codesign --force --sign - "$APP/Contents/SharedSupport/asciidraw"
 codesign --force --sign - "$ROOT/build/asciidraw"
 codesign --force --sign - "$APP"
 echo "Built $APP"
