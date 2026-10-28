@@ -39,17 +39,49 @@ public struct RectangleProps: Equatable, Codable {
     public var fill: String?
     public var shadow: ShadowStyle?
     public var points: [BorderPoint]
+    /// When true, this border joins crossing box-drawing strokes. Off keeps the later shape on top.
+    public var blended: Bool
 
-    public init(border: BorderStyle? = .single, fill: String? = nil, shadow: ShadowStyle? = nil, points: [BorderPoint] = []) {
+    public init(
+        border: BorderStyle? = .single,
+        fill: String? = nil,
+        shadow: ShadowStyle? = nil,
+        points: [BorderPoint] = [],
+        blended: Bool = true
+    ) {
         self.border = border
         self.fill = fill
         self.shadow = shadow
         self.points = points
+        self.blended = blended
     }
 
+    /// A space is an opaque blank: it hides ink behind the shape and still leaves the cell empty.
     public var fillGlyph: Character? {
-        guard let fill, let first = fill.first, first != " " else { return nil }
+        guard let fill, let first = fill.first else { return nil }
         return first
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case border, fill, shadow, points, blended
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        border = try container.decodeIfPresent(BorderStyle.self, forKey: .border)
+        fill = try container.decodeIfPresent(String.self, forKey: .fill)
+        shadow = try container.decodeIfPresent(ShadowStyle.self, forKey: .shadow)
+        points = try container.decodeIfPresent([BorderPoint].self, forKey: .points) ?? []
+        blended = try container.decodeIfPresent(Bool.self, forKey: .blended) ?? true
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(border, forKey: .border)
+        try container.encodeIfPresent(fill, forKey: .fill)
+        try container.encodeIfPresent(shadow, forKey: .shadow)
+        try container.encode(points, forKey: .points)
+        try container.encode(blended, forKey: .blended)
     }
 }
 
@@ -78,6 +110,13 @@ public struct TextProps: Equatable, Codable {
     public var sweep: LineSweep
     public var lineMovement: LineMovement
     public var border: BorderStyle?
+    /// When a border is on, keep the glyphs inside it. Off lets text draw on the border cells.
+    public var textInsideBorder: Bool
+    public var fill: String?
+    /// Bundled FIGlet face. Nil keeps the source characters.
+    public var fontName: String?
+    /// When true, this border joins crossing box-drawing strokes.
+    public var blended: Bool
 
     public init(
         text: String,
@@ -85,7 +124,11 @@ public struct TextProps: Equatable, Codable {
         position: TextVerticalPosition = .top,
         sweep: LineSweep = .down,
         lineMovement: LineMovement = .none,
-        border: BorderStyle? = nil
+        border: BorderStyle? = nil,
+        textInsideBorder: Bool = true,
+        fill: String? = nil,
+        fontName: String? = nil,
+        blended: Bool = true
     ) {
         self.text = text
         self.alignment = alignment
@@ -93,6 +136,48 @@ public struct TextProps: Equatable, Codable {
         self.sweep = sweep
         self.lineMovement = lineMovement
         self.border = border
+        self.textInsideBorder = textInsideBorder
+        self.fill = fill
+        self.fontName = fontName
+        self.blended = blended
+    }
+
+    /// A space is an opaque blank: it hides ink behind the shape and still leaves the cell empty.
+    public var fillGlyph: Character? {
+        guard let fill, let first = fill.first else { return nil }
+        return first
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case text, alignment, position, sweep, lineMovement, border, textInsideBorder, fill, fontName, blended
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        text = try container.decode(String.self, forKey: .text)
+        alignment = try container.decodeIfPresent(TextAlignment.self, forKey: .alignment) ?? .left
+        position = try container.decodeIfPresent(TextVerticalPosition.self, forKey: .position) ?? .top
+        sweep = try container.decodeIfPresent(LineSweep.self, forKey: .sweep) ?? .down
+        lineMovement = try container.decodeIfPresent(LineMovement.self, forKey: .lineMovement) ?? .none
+        border = try container.decodeIfPresent(BorderStyle.self, forKey: .border)
+        textInsideBorder = try container.decodeIfPresent(Bool.self, forKey: .textInsideBorder) ?? true
+        fill = try container.decodeIfPresent(String.self, forKey: .fill)
+        fontName = try container.decodeIfPresent(String.self, forKey: .fontName)
+        blended = try container.decodeIfPresent(Bool.self, forKey: .blended) ?? true
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(text, forKey: .text)
+        try container.encode(alignment, forKey: .alignment)
+        try container.encode(position, forKey: .position)
+        try container.encode(sweep, forKey: .sweep)
+        try container.encode(lineMovement, forKey: .lineMovement)
+        try container.encodeIfPresent(border, forKey: .border)
+        try container.encode(textInsideBorder, forKey: .textInsideBorder)
+        try container.encodeIfPresent(fill, forKey: .fill)
+        try container.encodeIfPresent(fontName, forKey: .fontName)
+        try container.encode(blended, forKey: .blended)
     }
 }
 
@@ -260,17 +345,53 @@ public struct Stamp: Equatable, Codable {
     public var point: GridPoint { GridPoint(x: x, y: y) }
 }
 
+public enum DocumentAlphabet: String, Equatable, Codable, CaseIterable {
+    case unicode
+    case ascii
+}
+
 public struct Document: Equatable, Codable {
     public var version: Int
     public var objects: [DrawObject]
     public var groups: [DrawGroup]
     public var stamps: [Stamp]
+    /// Unicode keeps box-drawing glyphs. ASCII substitutes `-`, `|`, `+`, and `=`.
+    public var alphabet: DocumentAlphabet
 
-    public init(version: Int = 1, objects: [DrawObject] = [], groups: [DrawGroup] = [], stamps: [Stamp] = []) {
+    public init(
+        version: Int = 1,
+        objects: [DrawObject] = [],
+        groups: [DrawGroup] = [],
+        stamps: [Stamp] = [],
+        alphabet: DocumentAlphabet = .unicode
+    ) {
         self.version = version
         self.objects = objects
         self.groups = groups
         self.stamps = stamps
+        self.alphabet = alphabet
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case version, objects, groups, stamps, alphabet
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        version = try container.decodeIfPresent(Int.self, forKey: .version) ?? 1
+        objects = try container.decodeIfPresent([DrawObject].self, forKey: .objects) ?? []
+        groups = try container.decodeIfPresent([DrawGroup].self, forKey: .groups) ?? []
+        stamps = try container.decodeIfPresent([Stamp].self, forKey: .stamps) ?? []
+        alphabet = try container.decodeIfPresent(DocumentAlphabet.self, forKey: .alphabet) ?? .unicode
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(version, forKey: .version)
+        try container.encode(objects, forKey: .objects)
+        try container.encode(groups, forKey: .groups)
+        try container.encode(stamps, forKey: .stamps)
+        try container.encode(alphabet, forKey: .alphabet)
     }
 
     public init(data: Data) throws {

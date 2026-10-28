@@ -46,8 +46,9 @@ public enum Renderer {
         var canvas: [GridPoint: Ink] = [:]
         for (_, object) in ordered {
             let drawn = ShapeRaster.cells(for: object)
+            let blends = borderBlends(object)
             for (point, character) in drawn {
-                let ink = Ink(character: character, z: object.zIndex)
+                let ink = Ink(character: character, z: object.zIndex, blends: blends)
                 canvas[point] = composite(canvas[point], ink)
             }
         }
@@ -99,10 +100,22 @@ public enum Renderer {
             var row = ""
             row.reserveCapacity(maxX - minX + 1)
             for x in minX...maxX {
-                row.append(ink[GridPoint(x: x, y: y)]?.character ?? " ")
+                let character = ink[GridPoint(x: x, y: y)]?.character ?? " "
+                row.append(AlphabetMap.display(character, alphabet: document.alphabet))
             }
             rows.append(row)
         }
         return RenderedGrid(minX: minX, minY: minY, rows: rows)
+    }
+
+    private static func borderBlends(_ object: DrawObject) -> Bool {
+        switch object.kind {
+        case .rectangle(let props):
+            return props.blended
+        case .text(let props):
+            return props.blended
+        case .diamond, .line, .banner:
+            return true
+        }
     }
 }

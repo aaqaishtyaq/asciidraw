@@ -278,6 +278,54 @@ final class BehaviorTests: XCTestCase {
         XCTAssertLessThan(rightEdge.start.y, resizedFrame.maxY)
     }
 
+    func testAlphabetBlendFontAndOpaqueFill() throws {
+        var ascii = Editor()
+        _ = ascii.addRectangle(frame: GridRect(x: 0, y: 0, width: 4, height: 3), border: .single, fill: nil, shadow: nil)
+        ascii.setAlphabet(.ascii)
+        XCTAssertEqual(ascii.render().plainText, ["+--+", "|  |", "+--+"].joined(separator: "\n"))
+        var heavy = Editor()
+        _ = heavy.addRectangle(frame: GridRect(x: 0, y: 0, width: 4, height: 3), border: .double, fill: nil, shadow: nil)
+        heavy.setAlphabet(.ascii)
+        XCTAssertEqual(heavy.render().plainText, ["+==+", "|  |", "+==+"].joined(separator: "\n"))
+        let saved = try ascii.saveData()
+        let loaded = try Editor(data: saved)
+        XCTAssertEqual(loaded.document.alphabet, .ascii)
+        XCTAssertEqual(loaded.render().plainText, ascii.render().plainText)
+
+        let legacyDocument = #"{"version":1,"objects":[],"groups":[],"stamps":[]}"#
+        let decodedDocument = try JSONDecoder().decode(Document.self, from: Data(legacyDocument.utf8))
+        XCTAssertEqual(decodedDocument.alphabet, .unicode)
+        let legacyRect = #"{"border":"single","points":[]}"#
+        let decodedRect = try JSONDecoder().decode(RectangleProps.self, from: Data(legacyRect.utf8))
+        XCTAssertEqual(decodedRect.border, .single)
+        XCTAssertTrue(decodedRect.blended)
+
+        var blended = Editor()
+        let box = blended.addRectangle(frame: GridRect(x: 0, y: 0, width: 7, height: 5), border: .single, fill: nil, shadow: nil)
+        _ = blended.addLine(LineProps(start: GridPoint(x: 3, y: -1), end: GridPoint(x: 3, y: 2), routing: .orthogonal))
+        XCTAssertEqual(blended.render().character(at: GridPoint(x: 3, y: 0)), "┼")
+        blended.setRectangle(box) { $0.blended = false }
+        XCTAssertEqual(blended.render().character(at: GridPoint(x: 3, y: 0)), "│")
+
+        var covered = Editor()
+        _ = covered.addLine(LineProps(start: GridPoint(x: 0, y: 1), end: GridPoint(x: 6, y: 1), routing: .orthogonal))
+        _ = covered.addRectangle(frame: GridRect(x: 2, y: 0, width: 3, height: 3), border: nil, fill: " ", shadow: nil)
+        expect(covered.render(), 1, 1, "─")
+        expect(covered.render(), 2, 1, " ")
+        expect(covered.render(), 4, 1, " ")
+        expect(covered.render(), 5, 1, "─")
+
+        var styled = Editor()
+        let text = styled.addText(frame: GridRect(x: 0, y: 0, width: 12, height: 6), text: "H")
+        styled.setText(text) { $0.fontName = "standard" }
+        expect(styled.render(), 0, 0, "#")
+        expect(styled.render(), 3, 0, "#")
+        guard case .text(let props) = styled.object(text)?.kind else {
+            return XCTFail("styled text missing")
+        }
+        XCTAssertEqual(TextLayout.rows(for: props).first, try FigletFont.bundled("standard").render("H").first)
+    }
+
     func testCrossingJunctionIsNotEitherStroke() {
         var editor = Editor()
         _ = editor.addRectangle(frame: GridRect(x: 0, y: 0, width: 7, height: 5), border: .single, fill: nil, shadow: nil)
@@ -358,6 +406,35 @@ final class BehaviorTests: XCTestCase {
         XCTAssertEqual(grown, GridRect(x: 0, y: 0, width: 14, height: 4))
         _ = editor.resizeObject(rect, to: grown, snap: false)
         XCTAssertEqual(editor.object(rect)?.frame.width, 14)
+    }
+
+    func testAlignEdgesAndDistribute() {
+        var editor = Editor()
+        let left = editor.addRectangle(frame: GridRect(x: 0, y: 5, width: 4, height: 3), border: .single, fill: nil, shadow: nil)
+        let right = editor.addRectangle(frame: GridRect(x: 12, y: 1, width: 6, height: 3), border: .single, fill: nil, shadow: nil)
+        let locked = editor.addRectangle(frame: GridRect(x: 30, y: 8, width: 4, height: 3), border: .single, fill: nil, shadow: nil)
+        editor.setLocked(locked, true)
+
+        editor.align([left, right, locked], to: .top)
+        XCTAssertEqual(editor.object(left)?.frame.y, 1)
+        XCTAssertEqual(editor.object(right)?.frame.y, 1)
+        XCTAssertEqual(editor.object(locked)?.frame, GridRect(x: 30, y: 8, width: 4, height: 3))
+        editor.align([left, right], to: .left)
+        XCTAssertEqual(editor.object(left)?.frame.x, 0)
+        XCTAssertEqual(editor.object(right)?.frame.x, 0)
+        editor.align([left, right], to: .right)
+        XCTAssertEqual(editor.object(left)?.frame.maxX, editor.object(right)?.frame.maxX)
+
+        var spaced = Editor()
+        let a = spaced.addRectangle(frame: GridRect(x: 0, y: 0, width: 4, height: 2), border: .single, fill: nil, shadow: nil)
+        let b = spaced.addRectangle(frame: GridRect(x: 10, y: 0, width: 4, height: 2), border: .single, fill: nil, shadow: nil)
+        let c = spaced.addRectangle(frame: GridRect(x: 30, y: 0, width: 4, height: 2), border: .single, fill: nil, shadow: nil)
+        spaced.distribute([a, b, c], along: .horizontal)
+        XCTAssertEqual(spaced.object(a)?.frame.x, 0)
+        XCTAssertEqual(spaced.object(c)?.frame.x, 30)
+        XCTAssertEqual(spaced.object(b)?.frame.x, 15)
+        spaced.undo()
+        XCTAssertEqual(spaced.object(b)?.frame.x, 10)
     }
 
     func testLockedHiddenAndZOrder() {
@@ -567,9 +644,9 @@ final class BehaviorTests: XCTestCase {
         XCTAssertEqual(loaded.render().plainText, editor.render().plainText)
     }
 
-    func testSingleKeyToolMapAndSpacePan() {
+    func testSingleKeyToolMapAndSpacePan() throws {
         let expected: [Character: Tool] = [
-            "v": .select, "r": .rect, "d": .diamond, "t": .text, "l": .line,
+            "v": .select, "r": .rect, "d": .diamond, "t": .text, "s": .surface, "l": .line,
             "p": .pencil, "e": .eraser, "b": .bucket, "k": .picker, "a": .banner, "h": .pan,
         ]
         XCTAssertEqual(Set(expected.values), Set(Tool.allCases))
@@ -583,6 +660,21 @@ final class BehaviorTests: XCTestCase {
             XCTAssertEqual(editor.activeTool, tool)
         }
         XCTAssertEqual(KeyBinding.interpret(KeyChord(character: "R", shift: true)), .selectTool(.rect))
+
+        var surface = Editor()
+        surface.pencilCharacter = "#"
+        _ = surface.addRectangle(frame: GridRect(x: 0, y: 0, width: 3, height: 2), border: nil, fill: "#", name: "Surface")
+        expect(surface.render(), 0, 0, "#")
+        expect(surface.render(), 2, 1, "#")
+
+        let legacy = #"{"text":"Hi","alignment":"center","position":"middle","sweep":"down","lineMovement":"none","border":"single"}"#
+        let decoded = try JSONDecoder().decode(TextProps.self, from: Data(legacy.utf8))
+        XCTAssertEqual(decoded.text, "Hi")
+        XCTAssertEqual(decoded.alignment, .center)
+        XCTAssertTrue(decoded.textInsideBorder)
+        XCTAssertNil(decoded.fill)
+        XCTAssertNil(decoded.fontName)
+        XCTAssertTrue(decoded.blended)
         XCTAssertNil(KeyBinding.interpret(KeyChord(character: "r", command: true)))
         XCTAssertNil(KeyBinding.interpret(KeyChord(character: "r", option: true)))
         XCTAssertNil(KeyBinding.interpret(KeyChord(character: "r", control: true)))

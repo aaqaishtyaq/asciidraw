@@ -1,7 +1,7 @@
 import Foundation
 
 public enum Tool: String, Equatable, Codable, CaseIterable {
-    case select, rect, diamond, text, line, pencil, eraser, bucket, picker, banner, pan
+    case select, rect, text, surface, diamond, line, pencil, eraser, bucket, picker, banner, pan
 
     public var title: String {
         switch self {
@@ -9,6 +9,7 @@ public enum Tool: String, Equatable, Codable, CaseIterable {
         case .rect: return "Rectangle"
         case .diamond: return "Diamond"
         case .text: return "Text"
+        case .surface: return "Surface"
         case .line: return "Line"
         case .pencil: return "Pencil"
         case .eraser: return "Eraser"
@@ -47,6 +48,7 @@ public enum ToolShortcut {
         ("r", .rect),
         ("d", .diamond),
         ("t", .text),
+        ("s", .surface),
         ("l", .line),
         ("p", .pencil),
         ("e", .eraser),
@@ -73,6 +75,14 @@ public enum KeyBinding {
         }
         return nil
     }
+}
+
+public enum AlignEdge: String, Equatable, Codable, CaseIterable {
+    case left, right, centerX, top, bottom, centerY
+}
+
+public enum DistributeAxis: String, Equatable, Codable {
+    case horizontal, vertical
 }
 
 public enum ResizeHandle: String, Equatable, CaseIterable {
@@ -125,6 +135,12 @@ public struct Editor: Equatable {
 
     public func render() -> RenderedGrid {
         Renderer.render(document)
+    }
+
+    public mutating func setAlphabet(_ alphabet: DocumentAlphabet) {
+        perform { document in
+            document.alphabet = alphabet
+        }
     }
 
     public func saveData() throws -> Data {
@@ -190,13 +206,14 @@ public struct Editor: Equatable {
         frame: GridRect,
         border: BorderStyle? = .single,
         fill: String? = nil,
-        shadow: ShadowStyle? = nil
+        shadow: ShadowStyle? = nil,
+        name: String = "Rectangle"
     ) -> UUID {
         let id = UUID()
         perform { document in
             document.objects.append(DrawObject(
                 id: id,
-                name: nextName("Rectangle", in: document),
+                name: nextName(name, in: document),
                 zIndex: nextZ(document),
                 frame: frame,
                 kind: .rectangle(RectangleProps(border: border, fill: fill, shadow: shadow))
@@ -369,6 +386,129 @@ public struct Editor: Equatable {
     public mutating func sendToBack(_ id: UUID) {
         let minZ = document.objects.map(\.zIndex).min() ?? 0
         setZIndex(id, minZ - 1)
+    }
+
+    public mutating func bringToFront(_ ids: [UUID]) {
+        let ordered = ids.filter { document.object($0) != nil }
+        guard !ordered.isEmpty else { return }
+        perform { document in
+            var z = (document.objects.map(\.zIndex).max() ?? -1) + 1
+            for id in ordered {
+                guard let index = document.objectIndex(id) else { continue }
+                document.objects[index].zIndex = z
+                z += 1
+            }
+        }
+    }
+
+    public mutating func sendToBack(_ ids: [UUID]) {
+        let ordered = ids.filter { document.object($0) != nil }
+        guard !ordered.isEmpty else { return }
+        perform { document in
+            var z = (document.objects.map(\.zIndex).min() ?? 0) - ordered.count
+            for id in ordered {
+                guard let index = document.objectIndex(id) else { continue }
+                document.objects[index].zIndex = z
+                z += 1
+            }
+        }
+    }
+
+    public mutating func setLocked(_ ids: [UUID], _ locked: Bool) {
+        let targets = ids.filter { document.object($0) != nil }
+        guard !targets.isEmpty else { return }
+        perform { document in
+            for id in targets {
+                guard let index = document.objectIndex(id) else { continue }
+                document.objects[index].locked = locked
+            }
+        }
+    }
+
+    public mutating func setHidden(_ ids: [UUID], _ hidden: Bool) {
+        let targets = ids.filter { document.object($0) != nil }
+        guard !targets.isEmpty else { return }
+        perform { document in
+            for id in targets {
+                guard let index = document.objectIndex(id) else { continue }
+                document.objects[index].hidden = hidden
+            }
+        }
+    }
+
+    /// Move unlocked shapes so the chosen edge or center matches the selection bounds.
+    public mutating func align(_ ids: [UUID], to edge: AlignEdge) {
+        let snapshots = alignable(document, ids)
+        guard snapshots.count >= 2 else { return }
+        let union = snapshots.dropFirst().reduce(snapshots[0].frame) { $0.union($1.frame) }
+        let moving = Set(snapshots.map(\.id))
+        let deltas = snapshots.map { item -> (UUID, GridPoint) in
+            let frame = item.frame
+            let delta: GridPoint
+            switch edge {
+            case .left:
+                delta = GridPoint(x: union.minX - frame.minX, y: 0)
+            case .right:
+                delta = GridPoint(x: union.maxX - frame.maxX, y: 0)
+            case .centerX:
+                delta = GridPoint(x: union.centerX - frame.centerX, y: 0)
+            case .top:
+                delta = GridPoint(x: 0, y: union.minY - frame.minY)
+            case .bottom:
+                delta = GridPoint(x: 0, y: union.maxY - frame.maxY)
+            case .centerY:
+                delta = GridPoint(x: 0, y: union.centerY - frame.centerY)
+            }
+            return (item.id, delta)
+        }
+        guard deltas.contains(where: { $0.1.x != 0 || $0.1.y != 0 }) else { return }
+        perform { document in
+            for (id, delta) in deltas {
+                shiftObject(&document, id: id, by: delta, moving: moving)
+            }
+        }
+    }
+
+    /// Evenly gap three or more unlocked shapes between the outermost pair.
+    public mutating func distribute(_ ids: [UUID], along axis: DistributeAxis) {
+        let snapshots = alignable(document, ids)
+        guard snapshots.count >= 3 else { return }
+        let sorted = snapshots.sorted { lhs, rhs in
+            switch axis {
+            case .horizontal:
+                return (lhs.frame.minX, lhs.frame.minY, lhs.id.uuidString) < (rhs.frame.minX, rhs.frame.minY, rhs.id.uuidString)
+            case .vertical:
+                return (lhs.frame.minY, lhs.frame.minX, lhs.id.uuidString) < (rhs.frame.minY, rhs.frame.minX, rhs.id.uuidString)
+            }
+        }
+        let first = sorted[0].frame
+        let last = sorted[sorted.count - 1].frame
+        let inner = sorted.dropFirst().dropLast()
+        let start = axis == .horizontal ? first.maxX : first.maxY
+        let end = axis == .horizontal ? last.minX : last.minY
+        let innerSpan = inner.reduce(0) { $0 + (axis == .horizontal ? $1.frame.width : $1.frame.height) }
+        let gapCount = inner.count + 1
+        let gap = (end - start - innerSpan) / gapCount
+        var cursor = start + gap
+        var deltas: [(UUID, GridPoint)] = []
+        for item in inner {
+            let origin = axis == .horizontal ? item.frame.minX : item.frame.minY
+            let delta = cursor - origin
+            if axis == .horizontal {
+                deltas.append((item.id, GridPoint(x: delta, y: 0)))
+            } else {
+                deltas.append((item.id, GridPoint(x: 0, y: delta)))
+            }
+            let size = axis == .horizontal ? item.frame.width : item.frame.height
+            cursor += size + gap
+        }
+        guard deltas.contains(where: { $0.1.x != 0 || $0.1.y != 0 }) else { return }
+        let moving = Set(snapshots.map(\.id))
+        perform { document in
+            for (id, delta) in deltas {
+                shiftObject(&document, id: id, by: delta, moving: moving)
+            }
+        }
     }
 
     @discardableResult
@@ -720,6 +860,37 @@ private func unionFrame(_ document: Document, _ ids: [UUID]) -> GridRect? {
     let frames = ids.compactMap { document.object($0)?.frame }
     guard let first = frames.first else { return nil }
     return frames.dropFirst().reduce(first) { $0.union($1) }
+}
+
+private func alignable(_ document: Document, _ ids: [UUID]) -> [(id: UUID, frame: GridRect)] {
+    var seen = Set<UUID>()
+    var result: [(id: UUID, frame: GridRect)] = []
+    for id in ids {
+        guard seen.insert(id).inserted, let object = document.object(id), !object.locked, !object.hidden else { continue }
+        result.append((id, object.frame))
+    }
+    return result
+}
+
+private func shiftObject(_ document: inout Document, id: UUID, by delta: GridPoint, moving: Set<UUID>) {
+    guard delta.x != 0 || delta.y != 0, let index = document.objectIndex(id) else { return }
+    guard !document.objects[index].locked else { return }
+    document.objects[index].frame.x += delta.x
+    document.objects[index].frame.y += delta.y
+    guard case .line(var props) = document.objects[index].kind else { return }
+    if let anchor = props.startAttachment, !moving.contains(anchor.shapeID) {
+        props.startAttachment = nil
+        props.start = props.start.offset(by: delta)
+    } else if props.startAttachment == nil {
+        props.start = props.start.offset(by: delta)
+    }
+    if let anchor = props.endAttachment, !moving.contains(anchor.shapeID) {
+        props.endAttachment = nil
+        props.end = props.end.offset(by: delta)
+    } else if props.endAttachment == nil {
+        props.end = props.end.offset(by: delta)
+    }
+    document.objects[index].kind = .line(props)
 }
 
 private func applyMove(_ document: inout Document, ids: [UUID], delta: GridPoint, threshold: Int) -> [SnapGuide] {

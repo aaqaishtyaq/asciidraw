@@ -32,6 +32,11 @@ final class DiagramCanvasView: NSView {
     private var gesture: GestureMode?
     private var draft: Draft?
     private var painting = false
+    private var trackingMouse = false
+
+    /// Pinned gutters. Row numbers run down the left, column numbers across the top.
+    private let rowRulerWidth: CGFloat = 36
+    private let columnRulerHeight: CGFloat = 18
 
     private enum Draft {
         case shape(GridRect)
@@ -77,7 +82,18 @@ final class DiagramCanvasView: NSView {
         addCursorRect(bounds, cursor: cursor)
     }
 
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        needsDisplay = true
+    }
+
     override func draw(_ dirtyRect: NSRect) {
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            drawCanvas(dirtyRect)
+        }
+    }
+
+    private func drawCanvas(_ dirtyRect: NSRect) {
         guard let model else { return }
         let background = NSColor.textBackgroundColor
         background.setFill()
@@ -87,19 +103,42 @@ final class DiagramCanvasView: NSView {
         let cellH = model.cellHeight * model.zoom
         guard cellW > 0.5, cellH > 0.5 else { return }
 
-        drawDots(model: model, cellW: cellW, cellH: cellH, clip: dirtyRect)
         let grid = model.editor.render()
+        NSGraphicsContext.saveGraphicsState()
+        NSRect(
+            x: rowRulerWidth,
+            y: columnRulerHeight,
+            width: max(0, bounds.width - rowRulerWidth),
+            height: max(0, bounds.height - columnRulerHeight)
+        ).clip()
+        drawDots(model: model, cellW: cellW, cellH: cellH, clip: dirtyRect)
         drawGrid(grid, model: model, cellW: cellW, cellH: cellH)
         drawSelection(model: model, cellW: cellW, cellH: cellH)
         drawDraft(model: model, cellW: cellW, cellH: cellH)
         drawGuides(model: model, cellW: cellW, cellH: cellH)
+        NSGraphicsContext.restoreGraphicsState()
+        drawRulers(model: model, cellW: cellW, cellH: cellH)
         setAccessibilityValue(grid.plainText)
     }
 
+    private func isOnRuler(_ point: NSPoint) -> Bool {
+        point.x < rowRulerWidth || point.y < columnRulerHeight
+    }
+
     override func mouseDown(with event: NSEvent) {
+        if clickLandsOnChrome(event) {
+            trackingMouse = false
+            return
+        }
+        let point = convert(event.locationInWindow, from: nil)
+        if isOnRuler(point) {
+            trackingMouse = false
+            window?.makeFirstResponder(self)
+            return
+        }
+        trackingMouse = true
         window?.makeFirstResponder(self)
         guard let model else { return }
-        let point = convert(event.locationInWindow, from: nil)
         let cell = cell(at: point, model: model)
         anchorCell = cell
         anchorPoint = point
@@ -151,7 +190,7 @@ final class DiagramCanvasView: NSView {
                 if !event.modifierFlags.contains(.shift) { model.selection = [] }
                 draft = .marquee(GridRect(x: cell.x, y: cell.y, width: 1, height: 1))
             }
-        case .rect, .diamond, .text, .banner:
+        case .rect, .surface, .diamond, .text, .banner:
             draft = .shape(GridRect(x: cell.x, y: cell.y, width: 1, height: 1))
         case .line:
             draft = .line(cell, cell)
@@ -159,8 +198,19 @@ final class DiagramCanvasView: NSView {
         needsDisplay = true
     }
 
+    /// The floating bar sits above the canvas. A click there must not start a canvas gesture.
+    private func clickLandsOnChrome(_ event: NSEvent) -> Bool {
+        guard let content = window?.contentView else { return false }
+        var view = content.hitTest(event.locationInWindow)
+        while let current = view {
+            if current.identifier?.rawValue == "canvas-chrome" { return true }
+            view = current.superview
+        }
+        return false
+    }
+
     override func mouseDragged(with event: NSEvent) {
-        guard let model else { return }
+        guard trackingMouse, let model else { return }
         let point = convert(event.locationInWindow, from: nil)
         let cell = cell(at: point, model: model)
         model.hover = cell
@@ -220,7 +270,9 @@ final class DiagramCanvasView: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
+        guard trackingMouse else { return }
         defer {
+            trackingMouse = false
             if gesture != nil {
                 model?.editor.endGesture()
                 gesture = nil
@@ -259,6 +311,7 @@ final class DiagramCanvasView: NSView {
     override func mouseMoved(with event: NSEvent) {
         guard let model else { return }
         let point = convert(event.locationInWindow, from: nil)
+        if isOnRuler(point) { return }
         model.hover = cell(at: point, model: model)
     }
 
@@ -270,7 +323,7 @@ final class DiagramCanvasView: NSView {
             model.zoom(by: factor, anchor: point)
         } else {
             model.scrollX += event.scrollingDeltaX
-            model.scrollY -= event.scrollingDeltaY
+            model.scrollY += event.scrollingDeltaY
         }
     }
 
@@ -350,6 +403,86 @@ final class DiagramCanvasView: NSView {
             guard let self else { return }
             self.window?.makeFirstResponder(self)
         }
+    }
+
+    /// Column and row indexes are stored from zero. The ruler shows them from one, like Monodraw.
+    private func drawRulers(model: EditorModel, cellW: Double, cellH: Double) {
+        let left = rowRulerWidth
+        let top = columnRulerHeight
+        NSColor.windowBackgroundColor.setFill()
+        NSRect(x: 0, y: 0, width: bounds.width, height: top).fill()
+        NSRect(x: 0, y: 0, width: left, height: bounds.height).fill()
+
+        NSColor.separatorColor.setStroke()
+        let border = NSBezierPath()
+        border.move(to: NSPoint(x: left, y: top))
+        border.line(to: NSPoint(x: bounds.width, y: top))
+        border.move(to: NSPoint(x: left, y: top))
+        border.line(to: NSPoint(x: left, y: bounds.height))
+        border.lineWidth = 1
+        border.stroke()
+
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium)
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: NSColor.secondaryLabelColor,
+        ]
+        let tickColor = NSColor.tertiaryLabelColor
+
+        let columnStep = rulerStep(span: cellW, minimum: 28)
+        let firstColumn = Int(floor((Double(left) - model.scrollX) / cellW)) - 1
+        let lastColumn = Int(ceil((bounds.maxX - model.scrollX) / cellW)) + 1
+        for index in firstColumn...lastColumn {
+            let edge = model.scrollX + Double(index) * cellW
+            guard edge >= Double(left) - 0.5, edge <= bounds.maxX + 0.5 else { continue }
+            let number = index + 1
+            let labeled = number % columnStep == 0
+            let medium = number % max(1, columnStep / 2) == 0
+            let tick = labeled ? top * 0.55 : (medium ? top * 0.35 : top * 0.2)
+            tickColor.setStroke()
+            let mark = NSBezierPath()
+            mark.move(to: NSPoint(x: edge, y: top - tick))
+            mark.line(to: NSPoint(x: edge, y: top))
+            mark.lineWidth = 1
+            mark.stroke()
+            if labeled {
+                let label = "\(number)" as NSString
+                let size = label.size(withAttributes: attributes)
+                let rect = NSRect(x: edge + 2, y: (top - size.height) / 2, width: size.width, height: size.height)
+                if rect.maxX < bounds.maxX && rect.minX > left {
+                    label.draw(in: rect, withAttributes: attributes)
+                }
+            }
+        }
+
+        let rowStep = rulerStep(span: cellH, minimum: 11)
+        let firstRow = Int(floor((Double(top) - model.scrollY) / cellH)) - 1
+        let lastRow = Int(ceil((bounds.maxY - model.scrollY) / cellH)) + 1
+        for index in firstRow...lastRow {
+            let edge = model.scrollY + Double(index) * cellH
+            guard edge + cellH >= Double(top), edge <= bounds.maxY else { continue }
+            let number = index + 1
+            guard number % rowStep == 0 else { continue }
+            let label = "\(number)" as NSString
+            let size = label.size(withAttributes: attributes)
+            let rect = NSRect(
+                x: left - size.width - 6,
+                y: edge + (cellH - size.height) / 2,
+                width: size.width,
+                height: size.height
+            )
+            if rect.minX >= 1 {
+                label.draw(in: rect, withAttributes: attributes)
+            }
+        }
+    }
+
+    /// Smallest 1/2/5/10… step whose labels do not collide at this cell size.
+    private func rulerStep(span: Double, minimum: Double) -> Int {
+        for step in [1, 2, 5, 10, 20, 50, 100] where Double(step) * span >= minimum {
+            return step
+        }
+        return 100
     }
 
     private func cell(at point: NSPoint, model: EditorModel) -> GridPoint {
@@ -550,6 +683,10 @@ final class DiagramCanvasView: NSView {
         switch tool {
         case .rect:
             id = model.editor.addRectangle(frame: frame, border: .single, fill: nil, shadow: nil)
+        case .surface:
+            let glyph = String(model.editor.pencilCharacter)
+            let fill = glyph == " " ? "░" : glyph
+            id = model.editor.addRectangle(frame: frame, border: nil, fill: fill, name: "Surface")
         case .diamond:
             id = model.editor.addDiamond(frame: frame)
         case .text:

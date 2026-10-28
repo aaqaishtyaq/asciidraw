@@ -183,15 +183,36 @@ struct BorderGlyphs {
 struct Ink {
     var character: Character
     var z: Int
+    var blends: Bool = true
 }
 
 func composite(_ existing: Ink?, _ incoming: Ink) -> Ink {
     guard let existing else { return incoming }
-    if let left = BoxDrawing.connections(for: existing.character),
+    if existing.blends, incoming.blends,
+       let left = BoxDrawing.connections(for: existing.character),
        let right = BoxDrawing.connections(for: incoming.character) {
         let merged = left.union(right)
-        return Ink(character: BoxDrawing.glyph(merged), z: max(existing.z, incoming.z))
+        return Ink(character: BoxDrawing.glyph(merged), z: max(existing.z, incoming.z), blends: true)
     }
     if incoming.z >= existing.z { return incoming }
     return existing
+}
+
+enum AlphabetMap {
+    static func display(_ character: Character, alphabet: DocumentAlphabet) -> Character {
+        guard alphabet == .ascii, let scalar = character.unicodeScalars.first, character.unicodeScalars.count == 1 else {
+            return character
+        }
+        guard (0x2500...0x257F).contains(scalar.value) else { return character }
+        switch character {
+        case "─", "┄", "┅", "┈", "┉", "╌", "╍":
+            return "-"
+        case "━", "═":
+            return "="
+        case "│", "┃", "┆", "┇", "┊", "┋", "╎", "╏", "║":
+            return "|"
+        default:
+            return "+"
+        }
+    }
 }

@@ -11,6 +11,7 @@ struct AsciiDrawMain: App {
             DocumentScreen()
         }
         .defaultSize(width: 1280, height: 800)
+        .windowToolbarStyle(.unified(showsTitle: false))
         .commands {
             AsciiDrawCommands()
         }
@@ -20,7 +21,13 @@ struct AsciiDrawMain: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
+        AppearanceController.shared.apply()
+        EditorBridge.shared.start()
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        EditorBridge.shared.stop()
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
@@ -35,6 +42,7 @@ extension Notification.Name {
 
 struct AsciiDrawCommands: Commands {
     @FocusedValue(\.editorModel) private var model
+    @ObservedObject private var appearance = AppearanceController.shared
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
@@ -72,13 +80,48 @@ struct AsciiDrawCommands: Commands {
                 .disabled(model?.selection.isEmpty != false)
             Divider()
             Button("Group") { model?.groupSelection() }
+                .keyboardShortcut("g", modifiers: .command)
                 .disabled((model?.selection.count ?? 0) < 2)
             Button("Ungroup") { model?.ungroupSelection() }
+                .keyboardShortcut("g", modifiers: [.command, .shift])
+            Divider()
+            Button("Bring to Front") { model?.bringSelectionToFront() }
+                .disabled(model?.selection.isEmpty != false)
+            Button("Send to Back") { model?.sendSelectionToBack() }
+                .disabled(model?.selection.isEmpty != false)
+            Button(model?.selectionLocked == true ? "Unlock" : "Lock") { model?.toggleLockSelection() }
+                .disabled(model?.selection.isEmpty != false)
+            Button(model?.selectionHidden == true ? "Show" : "Hide") { model?.toggleHiddenSelection() }
+                .disabled(model?.selection.isEmpty != false)
+            Divider()
+            Button("Align Left") { model?.alignSelection(.left) }
+                .disabled((model?.selection.count ?? 0) < 2)
+            Button("Align Center") { model?.alignSelection(.centerX) }
+                .disabled((model?.selection.count ?? 0) < 2)
+            Button("Align Right") { model?.alignSelection(.right) }
+                .disabled((model?.selection.count ?? 0) < 2)
+            Button("Align Top") { model?.alignSelection(.top) }
+                .disabled((model?.selection.count ?? 0) < 2)
+            Button("Align Middle") { model?.alignSelection(.centerY) }
+                .disabled((model?.selection.count ?? 0) < 2)
+            Button("Align Bottom") { model?.alignSelection(.bottom) }
+                .disabled((model?.selection.count ?? 0) < 2)
+            Button("Distribute Horizontally") { model?.distributeSelection(.horizontal) }
+                .disabled((model?.selection.count ?? 0) < 3)
+            Button("Distribute Vertically") { model?.distributeSelection(.vertical) }
+                .disabled((model?.selection.count ?? 0) < 3)
             Divider()
             Button("Zoom to Fit") { model?.zoomToFit() }
                 .keyboardShortcut("0", modifiers: .command)
             Button("Actual Size") { model?.setZoom(1) }
                 .keyboardShortcut("1", modifiers: .command)
+        }
+        CommandGroup(after: .toolbar) {
+            Picker("Appearance", selection: $appearance.choice) {
+                Text("System").tag(AppearanceChoice.system)
+                Text("Light").tag(AppearanceChoice.light)
+                Text("Dark").tag(AppearanceChoice.dark)
+            }
         }
         CommandMenu("Export") {
             ForEach(ExportKind.allCases) { kind in

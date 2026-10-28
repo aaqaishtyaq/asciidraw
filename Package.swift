@@ -1,12 +1,13 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.2
 import PackageDescription
 
 let package = Package(
     name: "AsciiDraw",
-    platforms: [.macOS(.v15)],
+    platforms: [.macOS(.v26)],
     products: [
         .library(name: "AsciiDrawCore", targets: ["AsciiDrawCore"]),
         .executable(name: "asciidraw", targets: ["AsciiDrawCLI"]),
+        .executable(name: "asciidraw-mcp", targets: ["AsciiDrawMCP"]),
         .executable(name: "AsciiDrawApp", targets: ["AsciiDrawApp"]),
     ],
     targets: [
@@ -19,6 +20,11 @@ let package = Package(
             name: "AsciiDrawCLI",
             dependencies: ["AsciiDrawCore"],
             path: "Sources/AsciiDrawCLI",
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        .executableTarget(
+            name: "AsciiDrawMCP",
+            path: "Sources/AsciiDrawMCP",
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .executableTarget(

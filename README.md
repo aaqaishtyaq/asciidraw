@@ -19,6 +19,26 @@ asciidraw --json Diagram.asciidraw
 
 Documents are JSON files with the extension `.asciidraw`.
 
+View → Appearance follows the system, or locks the window to light or dark. The canvas, rulers, and inspector use the same appearance.
+
+## MCP
+
+`asciidraw-mcp` lets Claude and other MCP clients read and edit the open document. The app has to be running. The server talks to it on a local socket.
+
+```json
+{
+  "mcpServers": {
+    "asciidraw": {
+      "command": "/absolute/path/to/AsciiDraw.app/Contents/MacOS/asciidraw-mcp"
+    }
+  }
+}
+```
+
+After `scripts/build-app.sh`, that binary is `build/AsciiDraw.app/Contents/MacOS/asciidraw-mcp`.
+
+Tools: `read_canvas`, `list_shapes`, `add_shape`, `set_text`, `set_frame`, `delete_shapes`, `select_shapes`, `set_zoom`.
+
 ## Tools
 
 Keys select a tool with no modifier. Space pans and restores the previous tool.
@@ -29,6 +49,7 @@ Keys select a tool with no modifier. Space pans and restores the previous tool.
 | R | Rectangle |
 | D | Diamond |
 | T | Text |
+| S | Surface |
 | L | Line |
 | P | Pencil |
 | E | Eraser |

@@ -95,15 +95,29 @@ enum ShapeRaster {
 
     static func text(frame: GridRect, props: TextProps) -> [GridPoint: Character] {
         var cells: [GridPoint: Character] = [:]
-        var content = frame
-        if let border = props.border, frame.width >= 2, frame.height >= 2 {
-            paintBorder(frame: frame, style: border, into: &cells)
-            content = frame.insetBy(1)
+        let bordered = props.border != nil && frame.width >= 2 && frame.height >= 2
+        let interior = bordered ? frame.insetBy(1) : frame
+        if let fill = props.fillGlyph, interior.width > 0, interior.height > 0 {
+            for y in interior.minY..<interior.maxY {
+                for x in interior.minX..<interior.maxX {
+                    cells[GridPoint(x: x, y: y)] = fill
+                }
+            }
         }
+        if let border = props.border, bordered {
+            paintBorder(frame: frame, style: border, into: &cells)
+        }
+        let content = (bordered && props.textInsideBorder) ? interior : frame
         guard content.width > 0, content.height > 0 else { return cells }
-        let rows = textRows(props.text, sweep: props.sweep, alignment: props.alignment)
-        place(rows: rows, in: content, alignment: props.alignment, position: props.position, movement: props.lineMovement, into: &cells)
+        place(rows: contentRows(props), in: content, alignment: props.alignment, position: props.position, movement: props.lineMovement, into: &cells)
         return cells
+    }
+
+    static func contentRows(_ props: TextProps) -> [String] {
+        if let fontName = props.fontName, let font = try? FigletFont.bundled(fontName) {
+            return font.render(props.text)
+        }
+        return textRows(props.text, sweep: props.sweep, alignment: props.alignment)
     }
 
     static func banner(frame: GridRect, props: BannerProps) -> [GridPoint: Character] {
@@ -446,5 +460,11 @@ enum ShapeRaster {
                 }
             }
         }
+    }
+}
+
+public enum TextLayout {
+    public static func rows(for props: TextProps) -> [String] {
+        ShapeRaster.contentRows(props)
     }
 }

@@ -10,13 +10,31 @@ extension Tool {
         case .rect: return "rectangle"
         case .diamond: return "diamond"
         case .text: return "textformat"
+        case .surface: return "square.grid.3x3.fill"
         case .line: return "line.diagonal"
         case .pencil: return "pencil"
         case .eraser: return "eraser"
-        case .bucket: return "paintbucket"
+        case .bucket: return "paintbrush.pointed.fill"
         case .picker: return "eyedropper"
         case .banner: return "bold"
         case .pan: return "hand.raised"
+        }
+    }
+
+    var toolbarLabel: String {
+        switch self {
+        case .select: return "Select"
+        case .pan: return "Pan"
+        case .rect: return "Rect"
+        case .text: return "Text"
+        case .surface: return "Surface"
+        case .diamond: return "Diamond"
+        case .line: return "Line"
+        case .banner: return "Banner"
+        case .pencil: return "Pencil"
+        case .bucket: return "Bucket"
+        case .picker: return "Picker"
+        case .eraser: return "Eraser"
         }
     }
 
@@ -107,6 +125,10 @@ final class EditorModel: ObservableObject {
         scrollY = anchor.y - cellY * cellHeight * new
     }
 
+    var viewportCenter: CGPoint {
+        CGPoint(x: viewport.width / 2, y: viewport.height / 2)
+    }
+
     func setZoom(_ newValue: Double) {
         let anchor = CGPoint(x: viewport.width / 2, y: viewport.height / 2)
         let factor = min(6, max(0.2, newValue)) / zoom
@@ -156,6 +178,44 @@ final class EditorModel: ObservableObject {
         for id in groupIDs {
             editor.ungroup(id)
         }
+    }
+
+    func alignSelection(_ edge: AlignEdge) {
+        editor.align(Array(selection), to: edge)
+    }
+
+    func distributeSelection(_ axis: DistributeAxis) {
+        editor.distribute(Array(selection), along: axis)
+    }
+
+    func bringSelectionToFront() {
+        editor.bringToFront(Array(selection))
+    }
+
+    func sendSelectionToBack() {
+        editor.sendToBack(Array(selection))
+    }
+
+    func toggleLockSelection() {
+        let ids = Array(selection)
+        guard !ids.isEmpty else { return }
+        let lock = ids.contains { editor.object($0)?.locked == false }
+        editor.setLocked(ids, lock)
+    }
+
+    func toggleHiddenSelection() {
+        let ids = Array(selection)
+        guard !ids.isEmpty else { return }
+        let hide = ids.contains { editor.object($0)?.hidden == false }
+        editor.setHidden(ids, hide)
+    }
+
+    var selectionLocked: Bool {
+        !selection.isEmpty && selection.allSatisfy { editor.object($0)?.locked == true }
+    }
+
+    var selectionHidden: Bool {
+        !selection.isEmpty && selection.allSatisfy { editor.object($0)?.hidden == true }
     }
 
     func nudgeSelection(dx: Int, dy: Int) {
