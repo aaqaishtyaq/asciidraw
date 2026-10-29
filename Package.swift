@@ -24,6 +24,7 @@ let package = Package(
         ),
         .executableTarget(
             name: "AsciiDrawMCP",
+            dependencies: ["AsciiDrawCore"],
             path: "Sources/AsciiDrawMCP",
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),

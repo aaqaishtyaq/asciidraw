@@ -47,10 +47,15 @@ jobs:
         run: |
           set -euo pipefail
           SHORT="${GITHUB_SHA::7}"
-          TAG="build-${SHORT}"
+          VERSION="$(sed -n 's/^[[:space:]]*public static let semantic = "\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)".*/\1/p' Sources/AsciiDrawCore/Version.swift)"
+          if [[ -z "$VERSION" ]]; then
+            echo "Could not read the semantic version." >&2
+            exit 1
+          fi
+          TAG="v${VERSION}"
           NOTES="$(mktemp)"
           {
-            echo "AsciiDraw for macOS 26 or later (Apple silicon)."
+            echo "AsciiDraw ${VERSION} for macOS 26 or later (Apple silicon)."
             echo
             echo "This build is ad-hoc signed and not notarized. Open the disk image and drag AsciiDraw to Applications, then right-click the app and choose Open the first time."
             echo
@@ -67,7 +72,7 @@ jobs:
             gh release create "$TAG" AsciiDraw.dmg \
               --target "$GITHUB_SHA" \
               --latest \
-              --title "AsciiDraw ${SHORT}" \
+              --title "AsciiDraw ${VERSION}" \
               --notes-file "$NOTES"
           fi
           rm -f "$NOTES"

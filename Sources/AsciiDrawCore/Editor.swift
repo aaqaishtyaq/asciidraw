@@ -318,6 +318,21 @@ public struct Editor: Equatable {
         }
     }
 
+    /// Sets the source and the frame together. Unlike resize, a one-cell frame stays one cell.
+    public mutating func setTextContent(_ id: UUID, text: String, frame: GridRect) {
+        perform { document in
+            guard let index = document.objectIndex(id), case .text(var props) = document.objects[index].kind else { return }
+            props.text = text
+            document.objects[index].kind = .text(props)
+            document.objects[index].frame = GridRect(
+                x: frame.x,
+                y: frame.y,
+                width: max(1, frame.width),
+                height: max(1, frame.height)
+            )
+        }
+    }
+
     public mutating func setLine(_ id: UUID, _ body: (inout LineProps) -> Void) {
         perform { document in
             guard let index = document.objectIndex(id), case .line(var props) = document.objects[index].kind else { return }

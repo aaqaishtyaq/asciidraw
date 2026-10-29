@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AsciiDraw — ASCII diagrams for the Mac</title>
-  <meta name="description" content="AsciiDraw is a native Mac editor for boxes, lines, diamonds, and FIGlet banners. The picture is characters, so it pastes into a README, a comment, or a terminal.">
+  <meta name="description" content="AsciiDraw is a native Mac editor for diagrams, mind maps, ER marks, banners, and plain-text art. Export text, PNG, or SVG. An MCP server edits the open document.">
   <meta property="og:title" content="AsciiDraw — ASCII diagrams for the Mac">
   <meta property="og:description" content="A native Mac editor for character diagrams. Draw on a grid, then export plain text, a comment, PNG, or SVG.">
   <meta property="og:image" content="https://aaqaishtyaq.github.io/asciidraw/images/editor.png">
@@ -12,15 +12,15 @@
   <link rel="icon" href="favicon.png">
   <link rel="apple-touch-icon" href="favicon.png">
   <link rel="stylesheet" href="style.css">
+  <script>document.documentElement.classList.add("js")</script>
 </head>
 <body id="top">
   <header class="nav">
     <a class="mark" href="#top"><img src="favicon.png" alt="">AsciiDraw</a>
     <nav class="links">
-      <a href="#draw">Draw</a>
-      <a href="#export">Export</a>
+      <a href="#features">Features</a>
+      <a href="#tools">Tools</a>
       <a href="#mcp">MCP</a>
-      <a href="#install">Install</a>
       <a href="https://github.com/aaqaishtyaq/asciidraw">GitHub</a>
       <a class="button" href="https://github.com/aaqaishtyaq/asciidraw/releases/latest/download/AsciiDraw.dmg">Download</a>
     </nav>
@@ -36,7 +36,7 @@
             <a class="button big" href="https://github.com/aaqaishtyaq/asciidraw/releases/latest/download/AsciiDraw.dmg">Download for macOS</a>
             <a class="button quiet big" href="https://github.com/aaqaishtyaq/asciidraw">View source</a>
           </div>
-          <p class="fine">Open the disk image and drag AsciiDraw to Applications. The build is ad-hoc signed. Right-click the app and choose Open the first time. <a href="#install">Install notes</a>.</p>
+          <p class="fine">Requires macOS 26 or later. Free.</p>
         </div>
         <figure class="art-wrap">
           <pre class="art" aria-label="ASCII diagram exported from AsciiDraw. Editor points at Canvas, and Canvas points at README.">┌──────────────┐        ┌──────────────┐
@@ -57,59 +57,142 @@
       </div>
       <figure class="shot">
         <img src="images/editor.png" alt="AsciiDraw on macOS, with a bordered box reading AsciiDraw, a line into a diamond, and a FIGlet banner on a dotted character grid." width="1400" height="860">
-        <figcaption>The welcome document: a box, a line, a diamond, and a banner, with rulers along the top and left.</figcaption>
+        <figcaption>A box, a line, a diamond, and a banner, with rulers along the top and left.</figcaption>
       </figure>
     </section>
 
-    <section class="cards" aria-label="Highlights">
-      <article class="card">
-        <h3>One grid</h3>
-        <p>Rectangles, text, lines, diamonds, and banners render into the same character cells. Rulers are numbered. Zoom stays on the cells.</p>
-      </article>
-      <article class="card">
-        <h3>Plain text out</h3>
-        <p>Copy the picture, or export plain text, a shell, Ruby, or Python comment, plus PNG, SVG, and JSON.</p>
-      </article>
-      <article class="card">
-        <h3>A local MCP server</h3>
-        <p>Claude and other MCP clients can read and edit the open document while AsciiDraw is running.</p>
-      </article>
+    <section class="band reveal" id="features">
+      <p class="eyebrow">Plain text</p>
+      <h2>The picture is characters.</h2>
+      <p class="lede">Diagrams, layouts, flow charts, data structures, and data formats stay as text, so they embed almost anywhere. PNG and SVG are there when the picture has to be an image.</p>
     </section>
 
-    <section class="band" id="draw">
+    <section class="band reveal" id="diagrams">
       <div class="split">
         <div class="copy">
-          <p class="eyebrow">Canvas</p>
-          <h2>Draw with the keys under your hand.</h2>
-          <p>Unmodified letters pick a tool. Space pans, then puts the previous tool back. Drag a line endpoint onto a box to attach it. Option-click a border to leave a point a line can stick to.</p>
-          <ul class="list">
-            <li>V select, R rectangle, D diamond, T text, S surface</li>
-            <li>L line, P pencil, E eraser, B bucket, K picker</li>
-            <li>A banner, H pan</li>
-          </ul>
+          <h2><span class="tile ink" aria-hidden="true"><svg viewBox="0 0 32 32"><rect class="draw" x="4" y="13" width="8" height="6" rx="1"/><rect class="draw" x="20" y="6" width="8" height="6" rx="1"/><rect class="draw" x="20" y="20" width="8" height="6" rx="1"/><path class="draw" d="M12 16h8M24 12v8"/></svg></span>Diagrams</h2>
+          <p>A diagram next to the code is easier to reread than the code alone. Rectangles, text, lines, and diamonds land on the same cells. The rulers count those cells.</p>
         </div>
         <figure>
           <img src="images/inspector.png" alt="A selected FIGlet banner in AsciiDraw. The inspector shows the text HI, the standard font, width 42, and height 6." width="1400" height="860">
-          <figcaption>Select a banner and the inspector edits the letters, the FIGlet font, and the frame.</figcaption>
+          <figcaption>Select a shape and the inspector edits it.</figcaption>
         </figure>
       </div>
     </section>
 
-    <section class="band" id="type">
-      <p class="eyebrow">Type and lines</p>
-      <h2>Borders, arrows, and three banner fonts.</h2>
-      <div class="export-grid">
-        <p>Rectangles take a single or double border, a fill, and a shadow. Lines can run orthogonal or as a staircase, dashed, and end in an arrow or one of three Crow’s foot caps. Drag an endpoint onto a rectangle to attach the line.</p>
-        <p>Banners use the bundled FIGlet fonts <code>block</code>, <code>slim</code>, and <code>standard</code>. Load any other <code>.flf</code> from the inspector. The document alphabet is Unicode or ASCII. The Shape menu groups, locks, aligns, and distributes a selection.</p>
+    <section class="band reveal">
+      <div class="pair">
+        <article>
+          <h2><span class="tile sea" aria-hidden="true"><svg viewBox="0 0 32 32"><circle class="draw" cx="16" cy="16" r="3"/><circle class="draw" cx="7" cy="8" r="2"/><circle class="draw" cx="25" cy="8" r="2"/><circle class="draw" cx="8" cy="24" r="2"/><circle class="draw" cx="24" cy="24" r="2"/><path class="draw" d="M13.4 14.2 8.6 9.6M18.6 14.2 23.2 9.6M13.6 18 9.6 22.2M18.4 18 22.4 22.2"/></svg></span>Mind mapping</h2>
+          <p>Put a note anywhere on the canvas and draw a line to the next one. The map does not have to follow the order of a text file.</p>
+          <pre class="sample" aria-hidden="true">        notes
+          |
+    +-----+-----+
+  ideas       later</pre>
+        </article>
+        <article>
+          <h2><span class="tile pine" aria-hidden="true"><svg viewBox="0 0 32 32"><path class="draw" d="M5 16h12"/><path class="draw" d="M17 16l9-7M17 16h9M17 16l9 7"/><circle cx="17" cy="16" r="1.5" fill="currentColor"/></svg></span>ER diagrams</h2>
+          <p>A line can end in an arrow or in one of three Crow’s foot marks: many, one or many, and zero or many.</p>
+          <pre class="sample" aria-hidden="true"> orders
+   |
+  >+<
+   |
+ customers</pre>
+        </article>
       </div>
     </section>
 
-    <section class="night" id="appearance">
+    <section class="band reveal" id="tools">
+      <h2><span class="tile plum" aria-hidden="true"><svg viewBox="0 0 32 32"><path class="draw" d="M7 9h12M7 14h18M7 19h9M7 24h15"/></svg></span>Banners</h2>
+      <p class="lede">One click drops a FIGlet banner. <code>block</code>, <code>slim</code>, and <code>standard</code> are included. Load any other <code>.flf</code> from the inspector, then resize the frame and change the alignment.</p>
+    </section>
+
+    <section class="band reveal">
+      <div class="pair">
+        <article>
+          <h2><span class="tile slate" aria-hidden="true"><svg viewBox="0 0 32 32"><path class="draw" d="M6 9h16M6 15h20M6 21h10"/><path class="draw" d="M23 17v8"/></svg></span>Text</h2>
+          <p>Double-click the canvas to type. Alignment, position, line sweep, and line movement sit in the inspector. A border is a checkbox.</p>
+        </article>
+        <article>
+          <h2><span class="tile tide" aria-hidden="true"><svg viewBox="0 0 32 32"><path class="draw" d="M7 24V11h12"/><path class="draw" d="M16 8l5 3-5 3"/></svg></span>Lines</h2>
+          <p>Orthogonal or staircase, with a dash pattern. Drag an endpoint onto a shape to attach it. Option-click a border to leave a point the line can stick to.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="band reveal">
+      <div class="pair">
+        <article>
+          <h2><span class="tile stone" aria-hidden="true"><svg viewBox="0 0 32 32"><rect class="draw" x="8" y="7" width="14" height="12" rx="1.5"/><path class="draw" d="M12 22h12M22 12v10"/></svg></span>Rectangles</h2>
+          <p>A single or double border, a fill, and a shadow. Attachment points sit on the border, so a line meets the box where you placed it.</p>
+        </article>
+        <article>
+          <h2><span class="tile ink" aria-hidden="true"><svg viewBox="0 0 32 32"><rect class="draw" x="5" y="7" width="22" height="18" rx="2"/><path class="draw" d="M9 14l4 3-4 3M15 20h8"/></svg></span>Command line</h2>
+          <p>The <code>asciidraw</code> command ships inside the app. It prints a saved document, or writes the same document back out as JSON.</p>
+          <pre class="sample"><code>/Applications/AsciiDraw.app/Contents/SharedSupport/asciidraw Diagram.asciidraw
+/Applications/AsciiDraw.app/Contents/SharedSupport/asciidraw --json Diagram.asciidraw</code></pre>
+        </article>
+      </div>
+    </section>
+
+    <section class="band reveal">
+      <div class="pair">
+        <article>
+          <h2><span class="tile moss" aria-hidden="true"><svg viewBox="0 0 32 32"><path class="draw" d="M20 6l6 6-11 11H9v-6L20 6z"/><path class="draw" d="M17 9l6 6"/></svg></span>Drawing</h2>
+          <p>Pencil, eraser, bucket fill, and the picker. Each one is a single key, with no modifier.</p>
+          <ul class="list">
+            <li>V select, R rectangle, D diamond, T text, S surface</li>
+            <li>L line, P pencil, E eraser, B bucket, K picker</li>
+            <li>A banner, H pan. Space pans, then restores the tool.</li>
+          </ul>
+        </article>
+        <article id="mcp">
+          <h2><span class="tile dusk" aria-hidden="true"><svg viewBox="0 0 32 32"><rect class="draw" x="4" y="11" width="7" height="10" rx="1.5"/><rect class="draw" x="21" y="11" width="7" height="10" rx="1.5"/><path class="draw" d="M11 16h3.5M17.5 16H21"/><circle cx="16" cy="16" r="1.7" fill="currentColor"/></svg></span>MCP</h2>
+          <p>While AsciiDraw is open, <code>asciidraw-mcp</code> speaks MCP on stdio. Claude and other clients can read the canvas and edit the document.</p>
+          <pre class="sample"><code>{
+  "mcpServers": {
+    "asciidraw": {
+      "command": "/Applications/AsciiDraw.app/Contents/MacOS/asciidraw-mcp"
+    }
+  }
+}</code></pre>
+          <ul class="list">
+            <li><code>read_canvas</code>, <code>list_shapes</code></li>
+            <li><code>add_shape</code>, <code>set_text</code>, <code>set_frame</code></li>
+            <li><code>delete_shapes</code>, <code>select_shapes</code>, <code>set_zoom</code></li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="band reveal" id="more">
+      <h2><span class="tile rose" aria-hidden="true"><svg viewBox="0 0 32 32"><circle class="draw" cx="16" cy="16" r="3"/><path class="draw" d="M16 6v4M16 22v4M6 16h4M22 16h4M9 9l2.5 2.5M20.5 20.5 23 23M23 9l-2.5 2.5M11.5 20.5 9 23"/></svg></span>Around the canvas</h2>
+      <div class="quad">
+        <article>
+          <h3><span class="tile sm blue" aria-hidden="true"><svg viewBox="0 0 32 32"><rect class="draw" x="5" y="7" width="14" height="14" rx="2"/><rect class="draw" x="13" y="13" width="14" height="14" rx="2"/></svg></span>Groups</h3>
+          <p>Group shapes, then duplicate or move them as one object. Ungroup puts the pieces back.</p>
+        </article>
+        <article>
+          <h3><span class="tile sm pine" aria-hidden="true"><svg viewBox="0 0 32 32"><path class="draw" d="M16 4v24M4 16h24"/><path class="draw" d="M16 10h7M16 22H9M10 16v7"/></svg></span>Guides</h3>
+          <p>Alignment guides appear while you move and resize, so the edges meet without counting cells.</p>
+        </article>
+        <article>
+          <h3><span class="tile sm plum" aria-hidden="true"><svg viewBox="0 0 32 32"><rect class="draw" x="9" y="9" width="14" height="14" rx="2"/><path class="draw" d="M5 12V6h6M21 5h6v6M27 20v6h-6M11 27H5v-6"/></svg></span>Focus</h3>
+          <p>Lock or hide the shapes you are not working on, then zoom in on what is left.</p>
+        </article>
+        <article>
+          <h3><span class="tile sm stone" aria-hidden="true"><svg viewBox="0 0 32 32"><rect class="draw" x="6" y="8" width="20" height="16" rx="3"/><path class="draw" d="M11 14h.01M16 14h.01M21 14h.01M12 19h8"/></svg></span>Shortcuts</h3>
+          <p>Tools are one key, with no modifier. The menus still show the command for everything else.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="night reveal" id="mac">
       <div class="split">
         <div class="copy">
-          <p class="eyebrow">Appearance</p>
-          <h2>Follow the system, or lock light or dark.</h2>
-          <p>View → Appearance sets the window. The canvas, rulers, sidebar, and inspector use the same choice. System tracks the Mac’s appearance.</p>
+          <h2><span class="tile light" aria-hidden="true"><svg viewBox="0 0 32 32"><rect class="draw" x="4" y="6" width="24" height="20" rx="2"/><path class="draw" d="M4 12h24"/><circle cx="8" cy="9" r="1" fill="currentColor"/><circle cx="12" cy="9" r="1" fill="currentColor"/></svg></span>Made for the Mac</h2>
+          <p>SwiftUI and AppKit, on the character grid. Undo is always there. Copy as Text puts the picture on the pasteboard. View → Appearance follows the system, or locks light or dark.</p>
+          <p class="gap">A document is a <code>.asciidraw</code> file. Finder opens it in AsciiDraw. The sidebar library keeps those files in folders on this Mac.</p>
         </div>
         <figure>
           <img src="images/dark.png" alt="AsciiDraw in dark mode, with the same diagram in light ink on a dark grid." width="1400" height="860">
@@ -118,73 +201,21 @@
       </div>
     </section>
 
-    <section class="band" id="export">
-      <p class="eyebrow">Leave the editor</p>
-      <h2>Export the picture as text or an image.</h2>
-      <div class="export-grid">
-        <div>
-          <p>Documents are JSON with the extension <code>.asciidraw</code>. The Export menu writes plain text, a shell comment, a Ruby comment, a Python comment, PNG, SVG, or JSON. Copy as Text puts the grid on the pasteboard.</p>
-          <p class="gap">The <code>asciidraw</code> command lives inside the app. It prints a saved document, or writes the JSON back out.</p>
-          <pre><code>/Applications/AsciiDraw.app/Contents/SharedSupport/asciidraw Diagram.asciidraw
-/Applications/AsciiDraw.app/Contents/SharedSupport/asciidraw --json Diagram.asciidraw</code></pre>
-        </div>
-        <div>
-          <h3>In the app</h3>
-          <ul class="list">
-            <li>Plain text, for a README or a commit message</li>
-            <li>Shell, Ruby, and Python comments</li>
-            <li>PNG and SVG, when the picture has to be an image</li>
-            <li>JSON, the same document the editor saves</li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <section class="band" id="mcp">
-      <p class="eyebrow">MCP</p>
-      <h2>Other tools can edit the open document.</h2>
-      <p class="lede">AsciiDraw listens on a local socket while it is running. <code>asciidraw-mcp</code> is a stdio MCP server inside the app bundle. It forwards one tool call at a time.</p>
-      <pre><code>{
-  "mcpServers": {
-    "asciidraw": {
-      "command": "/Applications/AsciiDraw.app/Contents/MacOS/asciidraw-mcp"
-    }
-  }
-}</code></pre>
-      <ul class="list">
-        <li><code>read_canvas</code> and <code>list_shapes</code></li>
-        <li><code>add_shape</code>, <code>set_text</code>, <code>set_frame</code></li>
-        <li><code>delete_shapes</code>, <code>select_shapes</code>, <code>set_zoom</code></li>
-      </ul>
-    </section>
-
-    <section class="install" id="install">
-      <p class="eyebrow">Install</p>
-      <h2>Drag it to Applications.</h2>
-      <p>GitHub Actions builds AsciiDraw on every push to <code>main</code> and publishes a disk image on the latest release.</p>
-      <ol class="steps">
-        <li><a href="https://github.com/aaqaishtyaq/asciidraw/releases/latest/download/AsciiDraw.dmg">Download AsciiDraw.dmg</a>.</li>
-        <li>Open it and drag AsciiDraw onto the Applications folder.</li>
-        <li>The app is ad-hoc signed and not notarized. Right-click it and choose Open the first time.</li>
-        <li>The <code>asciidraw</code> command is inside the app, at <code>Contents/SharedSupport/asciidraw</code>. Symlink it onto your <code>PATH</code> if you want the short name.</li>
-      </ol>
-      <p class="fine gap">If macOS says the app is damaged, the download was quarantined. In Terminal: <code>xattr -dr com.apple.quarantine /Applications/AsciiDraw.app</code></p>
-      <p class="fine gap">Requires macOS 26 or later. The published disk image is Apple silicon. To build it yourself: <code>swift test</code>, then <code>scripts/build-app.sh</code>.</p>
-    </section>
-
-    <section class="faq" id="faq">
+    <section class="faq reveal" id="faq">
       <h2>Questions</h2>
       <dl>
         <dt>Is it free?</dt>
         <dd>Yes. There is no license and no store. The source is on GitHub.</dd>
-        <dt>Which Macs can run it?</dt>
-        <dd>macOS 26 or later. The disk image is built for Apple silicon. An Intel Mac can still build it from source on macOS 26.</dd>
-        <dt>Why does the first open need a right-click?</dt>
-        <dd>The continuous build is signed ad-hoc. It is not notarized with an Apple Developer ID, so Gatekeeper does not treat it as a normal download.</dd>
+        <dt>What are the system requirements?</dt>
+        <dd>macOS 26 or later.</dd>
         <dt>How many FIGlet fonts are included?</dt>
         <dd>Three: block, slim, and standard. The inspector can load another <code>.flf</code>.</dd>
-        <dt>Where does the MCP server connect?</dt>
+        <dt>Where is the command line tool?</dt>
+        <dd><code>/Applications/AsciiDraw.app/Contents/SharedSupport/asciidraw</code></dd>
+        <dt>Where does MCP connect?</dt>
         <dd>To the running app, on a socket under <code>/tmp</code> that belongs to your user. Nothing listens on the network.</dd>
+        <dt>How do I send feedback?</dt>
+        <dd>Open an issue on <a href="https://github.com/aaqaishtyaq/asciidraw">GitHub</a>.</dd>
       </dl>
     </section>
   </main>
@@ -193,5 +224,21 @@
     <span>AsciiDraw · Aaqa Ishtyaq</span>
     <span><a href="https://github.com/aaqaishtyaq/asciidraw">github.com/aaqaishtyaq/asciidraw</a></span>
   </footer>
+  <script>
+    const nodes = document.querySelectorAll(".reveal");
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!("IntersectionObserver" in window) || reduce) {
+      nodes.forEach((node) => node.classList.add("in"));
+    } else {
+      const observer = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          entry.target.classList.add("in");
+          observer.unobserve(entry.target);
+        }
+      }, { rootMargin: "0px 0px -8% 0px", threshold: 0.12 });
+      nodes.forEach((node) => observer.observe(node));
+    }
+  </script>
 </body>
 </html>

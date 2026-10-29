@@ -34,6 +34,15 @@ final class AppearanceController: ObservableObject {
         }
     }
 
+    var nsAppearance: NSAppearance? {
+        let name: NSAppearance.Name = switch choice {
+        case .light: .aqua
+        case .dark: .darkAqua
+        case .system: Self.systemIsDark ? .darkAqua : .aqua
+        }
+        return NSAppearance(named: name)
+    }
+
     private var themeObserver: NSObjectProtocol?
 
     private init() {

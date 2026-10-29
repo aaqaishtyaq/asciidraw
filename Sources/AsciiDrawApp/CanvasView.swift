@@ -2,6 +2,18 @@ import AsciiDrawCore
 import AppKit
 import SwiftUI
 
+/// Monodraw's canvas is white with a #ebebeb line on each cell edge.
+/// Dark mode uses the same weight: a light hairline on the dark paper.
+private enum CanvasPaper {
+    static let grid = NSColor(name: NSColor.Name("AsciiDrawCanvasGrid"), dynamicProvider: { appearance in
+        let dark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        if dark {
+            return NSColor(srgbRed: 1, green: 1, blue: 1, alpha: 0.14)
+        }
+        return NSColor(srgbRed: 235 / 255, green: 235 / 255, blue: 235 / 255, alpha: 1)
+    })
+}
+
 struct CanvasRepresentable: NSViewRepresentable {
     @ObservedObject var model: EditorModel
 
@@ -13,8 +25,13 @@ struct CanvasRepresentable: NSViewRepresentable {
 
     func updateNSView(_ view: DiagramCanvasView, context: Context) {
         view.model = model
-        view.needsDisplay = true
-        view.resetCursorRects()
+        // Hover updates the status readout on every move. Redrawing the whole
+        // cell field for that, at 20% zoom, is what makes the canvas stall.
+        if view.drawnPicture != model.picture {
+            view.drawnPicture = model.picture
+            view.needsDisplay = true
+            view.resetCursorRects()
+        }
     }
 }
 
@@ -33,10 +50,15 @@ final class DiagramCanvasView: NSView {
     private var draft: Draft?
     private var painting = false
     private var trackingMouse = false
+    var drawnPicture = -1
+    private var cachedContent = -1
+    private var cachedGrid: RenderedGrid?
 
     /// Pinned gutters. Row numbers run down the left, column numbers across the top.
-    private let rowRulerWidth: CGFloat = 36
-    private let columnRulerHeight: CGFloat = 18
+    /// Wide enough for a three-digit row number in the canvas font.
+    private let rowRulerWidth: CGFloat = 42
+    /// One grid row at 100%. Column numbers then share the canvas line height.
+    private let columnRulerHeight: CGFloat = 22
 
     private enum Draft {
         case shape(GridRect)
@@ -74,6 +96,8 @@ final class DiagramCanvasView: NSView {
         let cursor: NSCursor
         if model.editor.spaceHeld || model.editor.tool == .pan {
             cursor = .openHand
+        } else if model.textEdit != nil {
+            cursor = .iBeam
         } else if model.editor.tool == .select {
             cursor = .arrow
         } else {
@@ -103,7 +127,7 @@ final class DiagramCanvasView: NSView {
         let cellH = model.cellHeight * model.zoom
         guard cellW > 0.5, cellH > 0.5 else { return }
 
-        let grid = model.editor.render()
+        let grid = renderedGrid(for: model)
         NSGraphicsContext.saveGraphicsState()
         NSRect(
             x: rowRulerWidth,
@@ -111,14 +135,23 @@ final class DiagramCanvasView: NSView {
             width: max(0, bounds.width - rowRulerWidth),
             height: max(0, bounds.height - columnRulerHeight)
         ).clip()
-        drawDots(model: model, cellW: cellW, cellH: cellH, clip: dirtyRect)
-        drawGrid(grid, model: model, cellW: cellW, cellH: cellH)
+        drawPaper(model: model, cellW: cellW, cellH: cellH, clip: dirtyRect)
+        drawGrid(grid, model: model, cellW: cellW, cellH: cellH, clip: dirtyRect)
         drawSelection(model: model, cellW: cellW, cellH: cellH)
+        drawTextCaret(model: model, cellW: cellW, cellH: cellH)
         drawDraft(model: model, cellW: cellW, cellH: cellH)
         drawGuides(model: model, cellW: cellW, cellH: cellH)
         NSGraphicsContext.restoreGraphicsState()
         drawRulers(model: model, cellW: cellW, cellH: cellH)
+    }
+
+    private func renderedGrid(for model: EditorModel) -> RenderedGrid {
+        if cachedContent == model.contentPicture, let cachedGrid { return cachedGrid }
+        let grid = model.editor.render()
+        cachedContent = model.contentPicture
+        cachedGrid = grid
         setAccessibilityValue(grid.plainText)
+        return grid
     }
 
     private func isOnRuler(_ point: NSPoint) -> Bool {
@@ -144,6 +177,30 @@ final class DiagramCanvasView: NSView {
         anchorPoint = point
         anchorScroll = CGPoint(x: model.scrollX, y: model.scrollY)
         model.hover = cell
+
+        if model.textEdit != nil {
+            if model.textEditContains(cell) {
+                model.placeTextCaret(at: cell)
+                trackingMouse = false
+                return
+            }
+            model.commitTextEdit(discardIfEmpty: true)
+        }
+        if event.clickCount >= 2, model.editor.activeTool == .select {
+            if let hit = model.editor.hitTest(cell),
+               let object = model.editor.object(hit),
+               case .text = object.kind,
+               !object.locked {
+                model.beginEditingText(hit, at: cell)
+                trackingMouse = false
+                return
+            }
+            if model.editor.hitTest(cell) == nil {
+                model.insertText(at: cell)
+                trackingMouse = false
+                return
+            }
+        }
 
         if event.modifierFlags.contains(.option), model.editor.activeTool == .select {
             addBorderPoint(at: cell, model: model)
@@ -312,7 +369,8 @@ final class DiagramCanvasView: NSView {
         guard let model else { return }
         let point = convert(event.locationInWindow, from: nil)
         if isOnRuler(point) { return }
-        model.hover = cell(at: point, model: model)
+        let cell = cell(at: point, model: model)
+        if model.hover != cell { model.hover = cell }
     }
 
     override func scrollWheel(with event: NSEvent) {
@@ -335,6 +393,10 @@ final class DiagramCanvasView: NSView {
 
     override func keyDown(with event: NSEvent) {
         guard let model else { return super.keyDown(with: event) }
+        if model.textEdit != nil {
+            handleTextKey(event, model: model)
+            return
+        }
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         let command = flags.contains(.command)
         let option = flags.contains(.option)
@@ -379,12 +441,47 @@ final class DiagramCanvasView: NSView {
     }
 
     override func keyUp(with event: NSEvent) {
+        if model?.textEdit != nil { return }
         if event.charactersIgnoringModifiers?.first == " " {
             model?.editor.endSpacePan()
             resetCursorRects()
             return
         }
         super.keyUp(with: event)
+    }
+
+    private func handleTextKey(_ event: NSEvent, model: EditorModel) {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        if flags.contains(.command) || flags.contains(.control) {
+            model.commitTextEdit(discardIfEmpty: false)
+            super.keyDown(with: event)
+            return
+        }
+        switch event.keyCode {
+        case 53:
+            model.commitTextEdit(discardIfEmpty: true)
+            model.selection = []
+        case 36, 76:
+            model.insertText("\n")
+        case 51:
+            model.deleteTextBackward()
+        case 117:
+            model.deleteTextForward()
+        case 123:
+            model.moveTextCaret(columns: -1)
+        case 124:
+            model.moveTextCaret(columns: 1)
+        case 125:
+            model.moveTextCaret(lines: 1)
+        case 126:
+            model.moveTextCaret(lines: -1)
+        case 48:
+            break
+        default:
+            guard let chars = event.characters, !chars.isEmpty else { return }
+            if chars.unicodeScalars.contains(where: { $0.value < 32 }) { return }
+            model.insertText(chars)
+        }
     }
 
     override func updateTrackingAreas() {
@@ -422,58 +519,74 @@ final class DiagramCanvasView: NSView {
         border.lineWidth = 1
         border.stroke()
 
-        let font = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium)
+        // Monodraw keeps the ruler type one size. Zoom changes how many cells
+        // you see, not how big the numbers are. A number scaled with the cell
+        // is clipped at the ruler when zoomed in, and clipped to nothing when
+        // the cell is shorter than the glyph.
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
         let attributes: [NSAttributedString.Key: Any] = [
             .font: font,
             .foregroundColor: NSColor.secondaryLabelColor,
         ]
         let tickColor = NSColor.tertiaryLabelColor
+        let sample = ("000" as NSString).size(withAttributes: attributes)
+        let labelPitch = sample.height + 2
 
-        let columnStep = rulerStep(span: cellW, minimum: 28)
+        let columnStep = rulerStep(span: cellW, minimum: sample.width + 8)
         let firstColumn = Int(floor((Double(left) - model.scrollX) / cellW)) - 1
         let lastColumn = Int(ceil((bounds.maxX - model.scrollX) / cellW)) + 1
+        // A tick on every column at 20% zoom is a solid bar, and hundreds of strokes.
+        let dense = cellW < 4
+        let ticks = NSBezierPath()
         for index in firstColumn...lastColumn {
             let edge = model.scrollX + Double(index) * cellW
             guard edge >= Double(left) - 0.5, edge <= bounds.maxX + 0.5 else { continue }
             let number = index + 1
             let labeled = number % columnStep == 0
             let medium = number % max(1, columnStep / 2) == 0
+            if dense && !medium { continue }
             let tick = labeled ? top * 0.55 : (medium ? top * 0.35 : top * 0.2)
-            tickColor.setStroke()
-            let mark = NSBezierPath()
-            mark.move(to: NSPoint(x: edge, y: top - tick))
-            mark.line(to: NSPoint(x: edge, y: top))
-            mark.lineWidth = 1
-            mark.stroke()
+            ticks.move(to: NSPoint(x: edge, y: top - tick))
+            ticks.line(to: NSPoint(x: edge, y: top))
             if labeled {
                 let label = "\(number)" as NSString
                 let size = label.size(withAttributes: attributes)
-                let rect = NSRect(x: edge + 2, y: (top - size.height) / 2, width: size.width, height: size.height)
+                // Tick on the column line. The digits sit just to its right,
+                // centered in the ruler, which is one row tall at 100%.
+                let rect = NSRect(
+                    x: edge + 2,
+                    y: (top - size.height) / 2,
+                    width: size.width,
+                    height: size.height
+                )
                 if rect.maxX < bounds.maxX && rect.minX > left {
                     label.draw(in: rect, withAttributes: attributes)
                 }
             }
         }
+        tickColor.setStroke()
+        ticks.lineWidth = 1
+        ticks.stroke()
 
-        let rowStep = rulerStep(span: cellH, minimum: 11)
+        let rowStep = rulerStep(span: cellH, minimum: labelPitch)
         let firstRow = Int(floor((Double(top) - model.scrollY) / cellH)) - 1
         let lastRow = Int(ceil((bounds.maxY - model.scrollY) / cellH)) + 1
         for index in firstRow...lastRow {
             let edge = model.scrollY + Double(index) * cellH
-            guard edge + cellH >= Double(top), edge <= bounds.maxY else { continue }
+            guard edge + cellH > Double(top), edge < bounds.maxY else { continue }
             let number = index + 1
             guard number % rowStep == 0 else { continue }
             let label = "\(number)" as NSString
             let size = label.size(withAttributes: attributes)
+            // Centered on the row, so the digits line up with that line of the grid.
             let rect = NSRect(
                 x: left - size.width - 6,
                 y: edge + (cellH - size.height) / 2,
                 width: size.width,
                 height: size.height
             )
-            if rect.minX >= 1 {
-                label.draw(in: rect, withAttributes: attributes)
-            }
+            guard rect.minX >= 1, rect.minY >= top, rect.maxY <= bounds.maxY else { continue }
+            label.draw(in: rect, withAttributes: attributes)
         }
     }
 
@@ -502,23 +615,72 @@ final class DiagramCanvasView: NSView {
         )
     }
 
-    private func drawDots(model: EditorModel, cellW: Double, cellH: Double, clip: NSRect) {
+    /// Graph paper, the same idea as Monodraw: white cells, one light line on
+    /// every cell edge. One stroke for the whole visible field. At 20% a dot per
+    /// cell was about a hundred thousand fills; the lines are a few hundred.
+    private func drawPaper(model: EditorModel, cellW: Double, cellH: Double, clip: NSRect) {
         let minX = Int(floor((clip.minX - model.scrollX) / cellW)) - 1
         let maxX = Int(ceil((clip.maxX - model.scrollX) / cellW)) + 1
         let minY = Int(floor((clip.minY - model.scrollY) / cellH)) - 1
         let maxY = Int(ceil((clip.maxY - model.scrollY) / cellH)) + 1
-        NSColor.tertiaryLabelColor.withAlphaComponent(0.55).setFill()
-        let radius = max(0.6, min(cellW, cellH) * 0.06)
-        for y in minY...maxY {
-            for x in minX...maxX {
-                let cx = model.scrollX + (Double(x) + 0.5) * cellW
-                let cy = model.scrollY + (Double(y) + 0.5) * cellH
-                NSBezierPath(ovalIn: NSRect(x: cx - radius, y: cy - radius, width: radius * 2, height: radius * 2)).fill()
-            }
+        guard minX <= maxX, minY <= maxY else { return }
+        guard let cg = NSGraphicsContext.current?.cgContext else { return }
+        // A 1pt line on a 12×22 cell matches the weight of Monodraw's grid.
+        // Zoomed out, a full point would fill the cell, so the stroke thins
+        // down to one pixel and skips edges that would sit on top of each other.
+        let scale = window?.backingScaleFactor ?? 2
+        let hairline = 1 / scale
+        let lineWidth = min(cellW, cellH) >= 8 ? 1.0 : hairline
+        let strideX = max(1, Int((lineWidth / cellW).rounded(.up)))
+        let strideY = max(1, Int((lineWidth / cellH).rounded(.up)))
+        let startX = minX - alignedRemainder(minX, strideX)
+        let startY = minY - alignedRemainder(minY, strideY)
+        cg.saveGState()
+        let ink = (CanvasPaper.grid.usingColorSpace(.sRGB) ?? CanvasPaper.grid)
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        ink.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        cg.setStrokeColor(red: red, green: green, blue: blue, alpha: alpha)
+        cg.setLineWidth(lineWidth)
+        cg.beginPath()
+        var x = startX
+        while x <= maxX + 1 {
+            let edge = model.scrollX + Double(x) * cellW
+            cg.move(to: CGPoint(x: edge, y: clip.minY))
+            cg.addLine(to: CGPoint(x: edge, y: clip.maxY))
+            x += strideX
+        }
+        var y = startY
+        while y <= maxY + 1 {
+            let edge = model.scrollY + Double(y) * cellH
+            cg.move(to: CGPoint(x: clip.minX, y: edge))
+            cg.addLine(to: CGPoint(x: clip.maxX, y: edge))
+            y += strideY
+        }
+        cg.strokePath()
+        cg.restoreGState()
+    }
+
+    private func alignedRemainder(_ value: Int, _ step: Int) -> Int {
+        let remainder = value % step
+        if remainder >= 0 { return remainder }
+        return remainder + step
+    }
+
+    private func drawGrid(_ grid: RenderedGrid, model: EditorModel, cellW: Double, cellH: Double, clip: NSRect) {
+        // At a normal size each glyph is centered in its cell. Zoomed out, that
+        // is one text layout per character across the whole window, and the old
+        // 6pt floor paints glyphs larger than the cell. A fitted line is one layout.
+        if cellH < 10 || cellW < 6 {
+            drawGridLines(grid, model: model, cellW: cellW, cellH: cellH, clip: clip)
+        } else {
+            drawGridCells(grid, model: model, cellW: cellW, cellH: cellH, clip: clip)
         }
     }
 
-    private func drawGrid(_ grid: RenderedGrid, model: EditorModel, cellW: Double, cellH: Double) {
+    private func drawGridCells(_ grid: RenderedGrid, model: EditorModel, cellW: Double, cellH: Double, clip: NSRect) {
         let fontSize = max(6, cellH * 0.72)
         let font = NSFont(name: "Menlo", size: fontSize) ?? NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
         let style = NSMutableParagraphStyle()
@@ -531,7 +693,7 @@ final class DiagramCanvasView: NSView {
         for (rowIndex, row) in grid.rows.enumerated() {
             let y = grid.minY + rowIndex
             let viewY = model.scrollY + Double(y) * cellH
-            if viewY > bounds.maxY || viewY + cellH < bounds.minY { continue }
+            if viewY > clip.maxY || viewY + cellH < clip.minY { continue }
             for (columnIndex, character) in row.enumerated() {
                 if character == " " { continue }
                 let x = grid.minX + columnIndex
@@ -541,10 +703,70 @@ final class DiagramCanvasView: NSView {
                     width: cellW,
                     height: cellH
                 )
-                if rect.maxX < bounds.minX || rect.minX > bounds.maxX { continue }
+                if rect.maxX < clip.minX || rect.minX > clip.maxX { continue }
                 (String(character) as NSString).draw(in: rect, withAttributes: attributes)
             }
         }
+    }
+
+    private func drawGridLines(_ grid: RenderedGrid, model: EditorModel, cellW: Double, cellH: Double, clip: NSRect) {
+        guard grid.columnCount > 0 else { return }
+        let unit = menloAdvance(at: 100) / 100
+        guard unit > 0 else { return }
+        let fontSize = max(0.5, min(cellH * 0.72, cellW / Double(unit)))
+        let font = NSFont(name: "Menlo", size: fontSize) ?? NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
+        let advance = menloAdvance(at: fontSize)
+        let style = NSMutableParagraphStyle()
+        style.alignment = .left
+        style.lineBreakMode = .byClipping
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: NSColor.labelColor,
+            .paragraphStyle: style,
+            .kern: CGFloat(cellW) - advance,
+        ]
+        let firstRow = max(grid.minY, Int(floor((clip.minY - model.scrollY) / cellH)) - 1)
+        let lastRow = min(grid.minY + grid.rowCount - 1, Int(ceil((clip.maxY - model.scrollY) / cellH)) + 1)
+        let firstCol = max(grid.minX, Int(floor((clip.minX - model.scrollX) / cellW)) - 1)
+        let lastCol = min(grid.minX + grid.columnCount - 1, Int(ceil((clip.maxX - model.scrollX) / cellW)) + 1)
+        guard firstRow <= lastRow, firstCol <= lastCol else { return }
+        for y in firstRow...lastRow {
+            let row = grid.rows[y - grid.minY]
+            guard let line = visibleLine(row, gridMinX: grid.minX, firstCol: firstCol, lastCol: lastCol) else { continue }
+            let viewY = model.scrollY + Double(y) * cellH
+            let rect = NSRect(
+                x: model.scrollX + Double(line.column) * cellW + (cellW - Double(advance)) / 2,
+                y: viewY,
+                width: Double(line.text.count) * cellW + cellW,
+                height: cellH
+            )
+            (line.text as NSString).draw(in: rect, withAttributes: attributes)
+        }
+    }
+
+    private func menloAdvance(at size: CGFloat) -> CGFloat {
+        let font = NSFont(name: "Menlo", size: size) ?? NSFont.monospacedSystemFont(ofSize: size, weight: .regular)
+        return ("0" as NSString).size(withAttributes: [.font: font]).width
+    }
+
+    /// The visible slice of a row, with blank ends removed. Nil when nothing is inked.
+    private func visibleLine(_ row: String, gridMinX: Int, firstCol: Int, lastCol: Int) -> (column: Int, text: String)? {
+        let start = max(0, firstCol - gridMinX)
+        let end = min(row.count, lastCol - gridMinX + 1)
+        guard start < end else { return nil }
+        let lower = row.index(row.startIndex, offsetBy: start)
+        let upper = row.index(lower, offsetBy: end - start)
+        var sliceStart = lower
+        var sliceEnd = upper
+        while sliceStart < sliceEnd && row[sliceStart] == " " {
+            sliceStart = row.index(after: sliceStart)
+        }
+        while sliceEnd > sliceStart && row[row.index(before: sliceEnd)] == " " {
+            sliceEnd = row.index(before: sliceEnd)
+        }
+        guard sliceStart < sliceEnd else { return nil }
+        let skipped = row.distance(from: lower, to: sliceStart)
+        return (gridMinX + start + skipped, String(row[sliceStart..<sliceEnd]))
     }
 
     private func drawSelection(model: EditorModel, cellW: Double, cellH: Double) {
@@ -555,7 +777,7 @@ final class DiagramCanvasView: NSView {
             let path = NSBezierPath(rect: rect.insetBy(dx: 0.5, dy: 0.5))
             path.lineWidth = 1.5
             path.stroke()
-            if model.selection.count == 1, !object.locked {
+            if model.selection.count == 1, !object.locked, model.textEdit?.id != id {
                 if case .line(let props) = object.kind {
                     drawHandle(at: point(props.start, model: model, cellW: cellW, cellH: cellH))
                     drawHandle(at: point(props.end, model: model, cellW: cellW, cellH: cellH))
@@ -566,6 +788,19 @@ final class DiagramCanvasView: NSView {
                 }
             }
         }
+    }
+
+    private func drawTextCaret(model: EditorModel, cellW: Double, cellH: Double) {
+        guard let session = model.textEdit,
+              let object = model.editor.object(session.id),
+              case .text(let props) = object.kind else { return }
+        let caret = min(session.caret, props.text.count)
+        let cell = TextCaret.cell(text: props.text, index: caret, frame: object.frame, props: props)
+        let rect = viewRect(GridRect(x: cell.x, y: cell.y, width: 1, height: 1), model: model, cellW: cellW, cellH: cellH)
+        let width = max(1, min(2, cellW * 0.16))
+        let bar = NSRect(x: rect.minX + 0.5, y: rect.minY + 1, width: width, height: max(1, rect.height - 2))
+        NSColor.controlAccentColor.setFill()
+        bar.fill()
     }
 
     private func drawHandle(at center: NSPoint) {
@@ -690,7 +925,14 @@ final class DiagramCanvasView: NSView {
         case .diamond:
             id = model.editor.addDiamond(frame: frame)
         case .text:
-            id = model.editor.addText(frame: frame, text: "Text")
+            let clicked = raw.width < 2 && raw.height < 2
+            let box = clicked ? GridRect(x: raw.x, y: raw.y, width: 1, height: 1) : frame
+            model.openTextGesture()
+            let createdID = model.editor.addText(frame: box, text: clicked ? "" : "Text")
+            model.adoptTextEdit(createdID, created: clicked, minimumFrame: clicked ? nil : box)
+            model.selection = [createdID]
+            model.editor.selectTool(.select)
+            return
         case .banner:
             id = model.editor.addBanner(frame: frame, text: "HI", fontName: "standard", alignment: .left)
         default:

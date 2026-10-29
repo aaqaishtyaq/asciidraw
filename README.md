@@ -4,7 +4,7 @@ Native macOS diagram editor for monospaced character art. Shapes live on a free 
 
 [Download for macOS](https://github.com/aaqaishtyaq/asciidraw/releases/latest/download/AsciiDraw.dmg) · [Website](https://aaqaishtyaq.github.io/asciidraw/)
 
-The download is a disk image. Drag AsciiDraw to Applications. The build is ad-hoc signed, for Apple silicon, and needs macOS 26 or later. Right-click the app and choose Open the first time. [Install notes](https://aaqaishtyaq.github.io/asciidraw/#install).
+Requires macOS 26 or later.
 
 ![AsciiDraw editing a box, a line, a diamond, and a banner](docs/images/editor.png)
 
@@ -27,9 +27,10 @@ The `asciidraw` command prints a saved document or writes recoverable JSON:
 ```sh
 asciidraw Diagram.asciidraw
 asciidraw --json Diagram.asciidraw
+asciidraw --version
 ```
 
-Documents are JSON files with the extension `.asciidraw`.
+Double-click the canvas to type. Documents are JSON files with the extension `.asciidraw`, and Finder opens them in AsciiDraw. The sidebar library is `~/Library/Application Support/AsciiDraw/Library`.
 
 View → Appearance follows the system, or locks the window to light or dark. The canvas, rulers, and inspector use the same appearance.
 

@@ -8,10 +8,14 @@ enum AsciiDrawCLI {
     }
 
     static func run(_ arguments: [String]) -> Int32 {
+        if arguments.contains("--version") {
+            FileHandle.standardOutput.write(Data("\(ProductVersion.semantic)\n".utf8))
+            return 0
+        }
         let wantsJSON = arguments.contains("--json")
         let paths = arguments.filter { $0 != "--json" }
         guard paths.count == 1, let path = paths.first else {
-            let message = "usage: asciidraw [--json] <file.asciidraw>\n"
+            let message = "usage: asciidraw [--json] <file.asciidraw>\n       asciidraw --version\n"
             FileHandle.standardError.write(Data(message.utf8))
             return 2
         }

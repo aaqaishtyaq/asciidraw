@@ -14,8 +14,7 @@ struct DocumentScreen: View {
 
     var body: some View {
         NavigationSplitView {
-            ShapeList(model: model)
-                .navigationSplitViewColumnWidth(min: 210, ideal: 240, max: 320)
+            SidebarColumn(model: model)
         } detail: {
             CanvasRepresentable(model: model)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -32,9 +31,18 @@ struct DocumentScreen: View {
         }
         .focusedSceneValue(\.editorModel, model)
         .preferredColorScheme(appearance.colorScheme)
+        .background(DocumentEditedMark(edited: model.isDirty))
         .onAppear {
             FrontDocument.model = model
             model.focusDrawing()
+            drainOpenedFiles()
+        }
+        .onOpenURL { url in
+            PendingFiles.enqueue([url])
+            drainOpenedFiles()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .asciiDrawOpenFile)) { _ in
+            drainOpenedFiles()
         }
         .frame(minWidth: 960, minHeight: 640)
     }
@@ -161,6 +169,12 @@ struct DocumentScreen: View {
         .help("\(tool.title) (\(tool.shortcutLabel)). Space pans temporarily.")
         .accessibilityLabel("\(tool.title) \(tool.shortcutLabel)")
         .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func drainOpenedFiles() {
+        let urls = PendingFiles.take()
+        guard let url = urls.first else { return }
+        model.open(url: url)
     }
 
     private var glyph: Binding<String> {
@@ -597,6 +611,74 @@ private final class GlassPillView: NSView {
     override func mouseDown(with event: NSEvent) {}
 }
 
+private enum SidebarPage {
+    case files, shapes
+}
+
+private struct SidebarColumn: View {
+    @ObservedObject var model: EditorModel
+    @State private var page: SidebarPage = .files
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 4) {
+                tab("Files", "folder", .files)
+                tab("Shapes", "square.on.square", .shapes)
+            }
+            .padding(.horizontal, 10)
+            .padding(.top, 8)
+            .padding(.bottom, 4)
+            switch page {
+            case .files:
+                FileBrowser(model: model)
+            case .shapes:
+                ShapeList(model: model)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .navigationSplitViewColumnWidth(min: 210, ideal: 240, max: 320)
+    }
+
+    private func tab(_ title: String, _ symbol: String, _ page: SidebarPage) -> some View {
+        let selected = self.page == page
+        return Button {
+            self.page = page
+        } label: {
+            Label(title, systemImage: symbol)
+                .font(.system(size: 12, weight: .medium))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 4)
+                .foregroundStyle(selected ? Color(nsColor: .controlBackgroundColor) : Color.primary)
+                .background {
+                    if selected {
+                        Capsule().fill(Color.primary)
+                    }
+                }
+        }
+        .buttonStyle(HoverPlateButtonStyle(shape: .capsule, selected: selected))
+        .accessibilityLabel(title)
+        .accessibilityIdentifier(page == .files ? "sidebar-files" : "sidebar-shapes")
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+private struct DocumentEditedMark: NSViewRepresentable {
+    var edited: Bool
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        view.isHidden = true
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        let edited = edited
+        DispatchQueue.main.async {
+            nsView.window?.isDocumentEdited = edited
+        }
+    }
+}
+
 private struct ShapeList: View {
     @ObservedObject var model: EditorModel
 
@@ -627,7 +709,6 @@ private struct ShapeList: View {
         .listStyle(.sidebar)
         .accessibilityIdentifier("shape-list")
         .accessibilityLabel("Shape list")
-        .navigationSplitViewColumnWidth(min: 210, ideal: 240)
     }
 
     /// A click in the detail used to make the sidebar list publish an empty selection and hide this bar.

@@ -37,6 +37,13 @@ rm -f "$ROOT/build/app-binary" "$ROOT/build/mcp-binary" "$ROOT/build/cli-binary"
 chmod +x "$APP/Contents/MacOS/AsciiDraw" "$APP/Contents/MacOS/asciidraw-mcp" \
   "$APP/Contents/SharedSupport/asciidraw" "$ROOT/build/asciidraw"
 cp "$ROOT/App/Info.plist" "$APP/Contents/Info.plist"
+VERSION="$(sed -n 's/^[[:space:]]*public static let semantic = "\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)".*/\1/p' "$ROOT/Sources/AsciiDrawCore/Version.swift")"
+if [[ -z "$VERSION" ]]; then
+  echo "Could not read the semantic version." >&2
+  exit 1
+fi
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" "$APP/Contents/Info.plist"
 cp "$ROOT/App/AsciiDraw.icns" "$APP/Contents/Resources/AsciiDraw.icns"
 cp "$ROOT/Fonts/"*.flf "$APP/Contents/Resources/Fonts/"
 codesign --force --sign - "$APP/Contents/SharedSupport/asciidraw"

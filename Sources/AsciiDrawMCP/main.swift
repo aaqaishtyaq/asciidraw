@@ -1,3 +1,4 @@
+import AsciiDrawCore
 import Darwin
 import Foundation
 
@@ -31,7 +32,7 @@ enum AsciiDrawMCP {
             return result(id, [
                 "protocolVersion": requested,
                 "capabilities": ["tools": ["listChanged": false]],
-                "serverInfo": ["name": "asciidraw", "version": "1.0"],
+                "serverInfo": ["name": "asciidraw", "version": ProductVersion.semantic],
             ])
         case "ping":
             return result(id, [:])

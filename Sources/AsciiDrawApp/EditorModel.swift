@@ -46,23 +46,69 @@ extension Tool {
 
 @MainActor
 final class EditorModel: ObservableObject {
-    @Published var editor: Editor
-    @Published var selection: Set<UUID> = []
-    @Published var guides: [SnapGuide] = []
-    @Published var scrollX: Double = 72
-    @Published var scrollY: Double = 48
-    @Published var zoom: Double = 1
+    @Published var editor: Editor {
+        didSet {
+            notePicture(content: true)
+            refreshDirty()
+        }
+    }
+    @Published var selection: Set<UUID> = [] {
+        didSet {
+            notePicture(content: false)
+            guard !committingText, let id = textEdit?.id, selection != [id] else { return }
+            commitTextEdit(discardIfEmpty: true)
+        }
+    }
+    @Published var guides: [SnapGuide] = [] {
+        didSet { notePicture(content: false) }
+    }
+    @Published var scrollX: Double = 72 {
+        didSet { notePicture(content: false) }
+    }
+    @Published var scrollY: Double = 48 {
+        didSet { notePicture(content: false) }
+    }
+    @Published var zoom: Double = 1 {
+        didSet { notePicture(content: false) }
+    }
     @Published var fileURL: URL?
     @Published var hover = GridPoint(x: 0, y: 0)
     @Published var viewport = CGSize(width: 1100, height: 720)
+    @Published var textEdit: TextSession? {
+        didSet { notePicture(content: false) }
+    }
+    @Published private(set) var isDirty = false
+
+    /// Bumps when the canvas picture changes. Hover updates the status line and does not bump it.
+    private(set) var picture: Int = 0
+    /// Bumps only when the rendered characters change, so scrolling can reuse the grid.
+    private(set) var contentPicture: Int = 0
+
+    private func notePicture(content: Bool) {
+        if content { contentPicture &+= 1 }
+        picture &+= 1
+    }
 
     let cellWidth: Double = 12
     let cellHeight: Double = 22
     var focusCanvas: (() -> Void)?
     private var didFit = false
+    private var savedDocument = Document()
+    private var committingText = false
 
-    init(editor: Editor = Editor.welcome()) {
+    init(editor: Editor = Editor()) {
         self.editor = editor
+        savedDocument = editor.document
+    }
+
+    struct TextSession: Equatable {
+        var id: UUID
+        var caret: Int
+        var columnHint: Int
+        /// Created by this edit. An empty one is removed when editing ends.
+        var created: Bool
+        /// Nil grows and shrinks with the typed text. A value is the box the user already drew.
+        var minimumFrame: GridRect?
     }
 
     var documentTitle: String {
@@ -136,16 +182,19 @@ final class EditorModel: ObservableObject {
     }
 
     func undo() {
+        commitTextEdit(discardIfEmpty: false)
         _ = editor.undo()
         guides = []
     }
 
     func redo() {
+        commitTextEdit(discardIfEmpty: false)
         _ = editor.redo()
         guides = []
     }
 
     func deleteSelection() {
+        commitTextEdit(discardIfEmpty: false)
         guard !selection.isEmpty else { return }
         editor.deleteObjects(Array(selection))
         selection = []
@@ -241,12 +290,34 @@ final class EditorModel: ObservableObject {
     }
 
     func newDocument() {
+        guard confirmDiscardIfNeeded() else { return }
         editor = Editor()
         selection = []
         guides = []
         fileURL = nil
-        didFit = false
-        fitIfNeeded()
+        markClean()
+        showBlankCanvas()
+    }
+
+    /// Save, drop, or keep the open diagram. Cancel returns false.
+    func confirmDiscardIfNeeded() -> Bool {
+        commitTextEdit(discardIfEmpty: true)
+        guard isDirty else { return true }
+        let alert = NSAlert()
+        alert.messageText = "Do you want to save the changes to \(documentTitle)?"
+        alert.informativeText = "Your changes will be lost if you don't save them."
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Don't Save")
+        alert.addButton(withTitle: "Cancel")
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            save()
+            return !isDirty
+        case .alertSecondButtonReturn:
+            return true
+        default:
+            return false
+        }
     }
 
     func openDocument() {
@@ -254,25 +325,36 @@ final class EditorModel: ObservableObject {
         panel.allowedContentTypes = [Self.fileType]
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
+        panel.directoryURL = fileURL?.deletingLastPathComponent() ?? LibraryStore.shared.folder
         guard panel.runModal() == .OK, let url = panel.url else { return }
         open(url: url)
     }
 
-    func open(url: URL) {
+    func open(url: URL, prompting: Bool = true) {
+        let standard = url.standardizedFileURL
+        if fileURL?.standardizedFileURL == standard { return }
+        if prompting, !confirmDiscardIfNeeded() { return }
         do {
-            let data = try Data(contentsOf: url)
+            let data = try CoordinatedFile.read(standard)
             editor = try Editor(data: data)
             selection = []
             guides = []
-            fileURL = url
-            didFit = false
-            fitIfNeeded()
+            fileURL = standard
+            markClean()
+            if editor.document.objects.isEmpty && editor.document.stamps.isEmpty {
+                showBlankCanvas()
+            } else {
+                didFit = false
+                fitIfNeeded()
+            }
+            LibraryStore.shared.reveal(standard)
         } catch {
             presentError(error)
         }
     }
 
     func save() {
+        commitTextEdit(discardIfEmpty: true)
         if let fileURL {
             write(to: fileURL)
         } else {
@@ -281,9 +363,11 @@ final class EditorModel: ObservableObject {
     }
 
     func saveAs() {
+        commitTextEdit(discardIfEmpty: true)
         let panel = NSSavePanel()
         panel.allowedContentTypes = [Self.fileType]
-        panel.nameFieldStringValue = (fileURL?.lastPathComponent ?? "Diagram") 
+        panel.directoryURL = fileURL?.deletingLastPathComponent() ?? LibraryStore.shared.folder
+        panel.nameFieldStringValue = (fileURL?.lastPathComponent ?? "Diagram")
         if panel.nameFieldStringValue.hasSuffix(".asciidraw") == false {
             panel.nameFieldStringValue += ".asciidraw"
         }
@@ -372,13 +456,195 @@ final class EditorModel: ObservableObject {
         }
     }
 
+    func noteMoved(from: URL, to: URL) {
+        if fileURL?.standardizedFileURL == from.standardizedFileURL {
+            fileURL = to
+        }
+    }
+
+    func noteFileRemoved(_ url: URL) {
+        guard fileURL?.standardizedFileURL == url.standardizedFileURL else { return }
+        fileURL = nil
+        if editor.document.objects.isEmpty && editor.document.stamps.isEmpty {
+            markClean()
+        } else {
+            savedDocument = Document(version: -1)
+            refreshDirty()
+        }
+    }
+
+    func textEditContains(_ cell: GridPoint) -> Bool {
+        guard let session = textEdit, let object = editor.object(session.id), case .text(let props) = object.kind else {
+            return false
+        }
+        if object.frame.contains(cell) { return true }
+        return TextCaret.cell(text: props.text, index: session.caret, frame: object.frame, props: props) == cell
+    }
+
+    func beginEditingText(_ id: UUID, at cell: GridPoint?) {
+        if textEdit?.id == id {
+            if let cell { placeTextCaret(at: cell) }
+            focusDrawing()
+            return
+        }
+        guard let object = editor.object(id), case .text(let props) = object.kind, !object.locked else { return }
+        openTextGesture()
+        let index = cell.map { TextCaret.index(in: props.text, frame: object.frame, props: props, cell: $0) } ?? props.text.count
+        textEdit = TextSession(
+            id: id,
+            caret: index,
+            columnHint: TextCaret.location(props.text, index: index).column,
+            created: false,
+            minimumFrame: object.frame
+        )
+        selection = [id]
+        editor.selectTool(.select)
+        focusDrawing()
+    }
+
+    func insertText(at cell: GridPoint) {
+        openTextGesture()
+        let frame = GridRect(x: cell.x, y: cell.y, width: 1, height: 1)
+        let id = editor.addText(frame: frame, text: "")
+        textEdit = TextSession(id: id, caret: 0, columnHint: 0, created: true, minimumFrame: nil)
+        selection = [id]
+        editor.selectTool(.select)
+        refreshDirty()
+        focusDrawing()
+    }
+
+    /// The text-tool drag already opened a gesture and created the object.
+    func adoptTextEdit(_ id: UUID, created: Bool, minimumFrame: GridRect?) {
+        guard let props = textProps(id) else { return }
+        let index = props.text.count
+        textEdit = TextSession(
+            id: id,
+            caret: index,
+            columnHint: TextCaret.location(props.text, index: index).column,
+            created: created,
+            minimumFrame: minimumFrame
+        )
+        refreshDirty()
+        focusDrawing()
+    }
+
+    func openTextGesture() {
+        commitTextEdit(discardIfEmpty: true)
+        editor.beginGesture(.accumulate)
+    }
+
+    func commitTextEdit(discardIfEmpty: Bool) {
+        guard !committingText, let session = textEdit else { return }
+        committingText = true
+        defer { committingText = false }
+        let empty = textProps(session.id)?.text.isEmpty ?? true
+        let drop = discardIfEmpty && session.created && empty
+        if drop, editor.object(session.id) != nil {
+            editor.deleteObjects([session.id])
+        }
+        textEdit = nil
+        if drop, selection.contains(session.id) {
+            var kept = selection
+            kept.remove(session.id)
+            selection = kept
+        }
+        editor.endGesture()
+    }
+
+    func placeTextCaret(at cell: GridPoint) {
+        guard var session = textEdit, let object = editor.object(session.id), case .text(let props) = object.kind else { return }
+        let index = TextCaret.index(in: props.text, frame: object.frame, props: props, cell: cell)
+        session.caret = index
+        session.columnHint = TextCaret.location(props.text, index: index).column
+        textEdit = session
+    }
+
+    func insertText(_ string: String) {
+        guard let session = textEdit, let props = textProps(session.id) else { return }
+        let inserted = TextCaret.insert(props.text, at: session.caret, string)
+        let spot = TextCaret.location(inserted.text, index: inserted.caret)
+        applyEditingText(inserted.text, caret: inserted.caret, column: spot.column)
+    }
+
+    func deleteTextBackward() {
+        guard let session = textEdit, let props = textProps(session.id) else { return }
+        let next = TextCaret.deleteBackward(props.text, at: session.caret)
+        guard next.text != props.text else { return }
+        let spot = TextCaret.location(next.text, index: next.caret)
+        applyEditingText(next.text, caret: next.caret, column: spot.column)
+    }
+
+    func deleteTextForward() {
+        guard let session = textEdit, let props = textProps(session.id) else { return }
+        let next = TextCaret.deleteForward(props.text, at: session.caret)
+        guard next.text != props.text else { return }
+        applyEditingText(next.text, caret: next.caret, column: session.columnHint)
+    }
+
+    func moveTextCaret(lines: Int = 0, columns: Int = 0) {
+        guard var session = textEdit, let props = textProps(session.id) else { return }
+        let text = props.text
+        if lines == 0 {
+            let next = min(max(0, session.caret + columns), text.count)
+            session.caret = next
+            session.columnHint = TextCaret.location(text, index: next).column
+            textEdit = session
+            return
+        }
+        let rows = text.components(separatedBy: "\n")
+        var spot = TextCaret.location(text, index: session.caret)
+        spot.line = min(max(0, spot.line + lines), max(0, rows.count - 1))
+        let column = min(session.columnHint, rows[spot.line].count)
+        session.caret = TextCaret.index(text, line: spot.line, column: column)
+        textEdit = session
+    }
+
+    private func applyEditingText(_ text: String, caret: Int, column: Int) {
+        guard var session = textEdit, let props = textProps(session.id), let object = editor.object(session.id) else { return }
+        let frame = TextCaret.fittedFrame(text: text, props: props, origin: object.frame, minimum: session.minimumFrame)
+        editor.setTextContent(session.id, text: text, frame: frame)
+        session.caret = caret
+        session.columnHint = column
+        textEdit = session
+    }
+
+    private func textProps(_ id: UUID) -> TextProps? {
+        guard case .text(let props) = editor.object(id)?.kind else { return nil }
+        return props
+    }
+
     private func write(to url: URL) {
         do {
-            try editor.saveData().write(to: url)
+            try CoordinatedFile.write(editor.saveData(), to: url)
             fileURL = url
+            markClean()
+            LibraryStore.shared.reload()
         } catch {
             presentError(error)
         }
+    }
+
+    private func showBlankCanvas() {
+        zoom = 1
+        scrollX = 72
+        scrollY = 48
+        didFit = true
+    }
+
+    private func markClean() {
+        savedDocument = editor.document
+        refreshDirty()
+    }
+
+    private func refreshDirty() {
+        var dirty = editor.document != savedDocument
+        if dirty, let session = textEdit, session.created,
+           let object = editor.object(session.id), case .text(let props) = object.kind, props.text.isEmpty {
+            var copy = editor.document
+            copy.objects.removeAll { $0.id == session.id }
+            if copy == savedDocument { dirty = false }
+        }
+        if isDirty != dirty { isDirty = dirty }
     }
 
     private func presentError(_ error: Error) {
@@ -388,7 +654,7 @@ final class EditorModel: ObservableObject {
         alert.runModal()
     }
 
-    static let fileType = UTType(filenameExtension: "asciidraw") ?? .json
+    static var fileType: UTType { AsciiDrawDocument.type }
 }
 
 enum ExportKind: String, CaseIterable, Identifiable {

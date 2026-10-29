@@ -5,6 +5,13 @@ import ImageIO
 import XCTest
 
 final class BehaviorTests: XCTestCase {
+    func testProductVersionIsSemantic() {
+        XCTAssertTrue(ProductVersion.isSemantic)
+        XCTAssertEqual(ProductVersion.semantic, "1.0.0")
+        XCTAssertEqual(ProductVersion.author, "Aaqa Ishtyaq")
+        XCTAssertEqual(ProductVersion.github.host, "github.com")
+    }
+
     func testRectangleSingleAndDoubleBorders() {
         var single = Editor()
         _ = single.addRectangle(frame: GridRect(x: 0, y: 0, width: 4, height: 3), border: .single, fill: nil, shadow: nil)
@@ -780,6 +787,85 @@ final class BehaviorTests: XCTestCase {
             try json.write(to: folder.appendingPathComponent("export.json"))
             print("proof-dir \(directory)")
         }
+    }
+
+    func testEmptyEditorIsBlank() {
+        let editor = Editor()
+        XCTAssertTrue(editor.document.objects.isEmpty)
+        XCTAssertTrue(editor.document.stamps.isEmpty)
+        XCTAssertEqual(editor.document.version, 1)
+    }
+
+    func testTextCaretTracksTheGrid() {
+        let frame = GridRect(x: 4, y: 2, width: 8, height: 3)
+        let props = plain("Hi")
+        XCTAssertEqual(TextCaret.location("ab\nc", index: 3).line, 1)
+        XCTAssertEqual(TextCaret.location("ab\nc", index: 3).column, 0)
+        XCTAssertEqual(TextCaret.cell(text: "Hi", index: 2, frame: frame, props: props), GridPoint(x: 6, y: 2))
+        XCTAssertEqual(TextCaret.index(in: "Hi", frame: frame, props: props, cell: GridPoint(x: 5, y: 2)), 1)
+
+        var centered = plain("Hi")
+        centered.alignment = .center
+        XCTAssertEqual(
+            TextCaret.cell(text: "Hi", index: 0, frame: GridRect(x: 4, y: 2, width: 6, height: 1), props: centered),
+            GridPoint(x: 6, y: 2)
+        )
+
+        let moved = plain("Hi", movement: .right)
+        XCTAssertEqual(
+            TextCaret.cell(text: "Hi", index: 0, frame: GridRect(x: 0, y: 0, width: 6, height: 1), props: moved),
+            GridPoint(x: 4, y: 0)
+        )
+
+        var up = plain("ab\ncd")
+        up.sweep = .up
+        XCTAssertEqual(
+            TextCaret.cell(text: "ab\ncd", index: 3, frame: GridRect(x: 0, y: 0, width: 4, height: 2), props: up),
+            GridPoint(x: 0, y: 0)
+        )
+        XCTAssertEqual(TextCaret.index(in: "ab\ncd", frame: GridRect(x: 0, y: 0, width: 4, height: 2), props: up, cell: GridPoint(x: 0, y: 0)), 3)
+
+        var bordered = plain("Ab")
+        bordered.border = .single
+        XCTAssertEqual(
+            TextCaret.cell(text: "Ab", index: 0, frame: GridRect(x: 0, y: 0, width: 6, height: 3), props: bordered),
+            GridPoint(x: 1, y: 1)
+        )
+
+        let inserted = TextCaret.insert("", at: 0, "A")
+        XCTAssertEqual(inserted.text, "A")
+        XCTAssertEqual(inserted.caret, 1)
+        let deleted = TextCaret.deleteBackward("AB", at: 1)
+        XCTAssertEqual(deleted.text, "B")
+        XCTAssertEqual(deleted.caret, 0)
+
+        let fitted = TextCaret.fittedFrame(
+            text: "Hello",
+            props: plain(""),
+            origin: GridRect(x: 4, y: 2, width: 1, height: 1),
+            minimum: nil
+        )
+        XCTAssertEqual(fitted, GridRect(x: 4, y: 2, width: 5, height: 1))
+        let kept = TextCaret.fittedFrame(
+            text: "A",
+            props: plain(""),
+            origin: GridRect(x: 1, y: 1, width: 8, height: 4),
+            minimum: GridRect(x: 1, y: 1, width: 8, height: 4)
+        )
+        XCTAssertEqual(kept, GridRect(x: 1, y: 1, width: 8, height: 4))
+    }
+
+    func testTextContentKeepsASingleCell() {
+        var editor = Editor()
+        let id = editor.addText(frame: GridRect(x: 1, y: 1, width: 1, height: 1), text: "")
+        editor.setTextContent(id, text: "A", frame: GridRect(x: 1, y: 1, width: 1, height: 1))
+        XCTAssertEqual(editor.object(id)?.frame, GridRect(x: 1, y: 1, width: 1, height: 1))
+        guard case .text(let props) = editor.object(id)?.kind else {
+            return XCTFail("missing text")
+        }
+        XCTAssertEqual(props.text, "A")
+        let grid = editor.render()
+        XCTAssertEqual(grid.character(at: GridPoint(x: 1, y: 1)), "A")
     }
 
     func testBundledFigletFontFileNames() throws {

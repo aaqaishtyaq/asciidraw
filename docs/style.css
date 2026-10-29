@@ -108,7 +108,7 @@ a:focus-visible, .button:focus-visible {
   outline-offset: 3px;
 }
 
-.hero, .band, .install, .faq, .foot, .cards {
+.hero, .band, .faq, .foot, .cards {
   width: auto;
   max-width: 1120px;
   margin-left: auto;
@@ -210,7 +210,7 @@ a:focus-visible, .button:focus-visible {
 
 .card p { color: var(--muted); margin-top: 6px; }
 
-.band, .install, .faq { padding-top: 64px; padding-bottom: 64px; }
+.band, .faq { padding-top: 64px; padding-bottom: 64px; }
 
 .split {
   display: grid;
@@ -275,7 +275,7 @@ code {
   border-radius: 5px;
 }
 
-.night code { background: #2a2d31; color: var(--night-ink); }
+.night code { background: rgba(255, 255, 255, 0.12); color: var(--night-ink); }
 
 pre {
   margin: 16px 0 0;
@@ -290,13 +290,88 @@ pre {
 
 pre code { background: transparent; padding: 0; color: inherit; }
 
-.steps { margin: 18px 0 0; padding-left: 1.2rem; }
-.steps li { margin: 8px 0; }
-.steps li::marker { color: var(--muted); }
-
 .faq dl { margin: 8px 0 0; }
 .faq dt { font-weight: 650; margin-top: 18px; }
 .faq dd { margin: 4px 0 0; color: var(--muted); }
+
+.pair, .quad {
+  display: grid;
+  gap: 28px 40px;
+}
+.pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.quad { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 8px; }
+.pair p, .quad p, .band > .lede { color: var(--muted); }
+.pair h2, .quad h3, .band > h2 { display: flex; align-items: center; gap: 12px; }
+.quad h3 { font-size: 1.05rem; }
+
+.tile {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  color: white;
+}
+.tile.sm { width: 36px; height: 36px; border-radius: 10px; }
+.tile svg {
+  width: 26px;
+  height: 26px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.tile.sm svg { width: 22px; height: 22px; }
+.tile svg [fill="currentColor"] { fill: currentColor; stroke: none; }
+.tile.ink { background: #16181d; }
+.tile.sea { background: #2f5d73; }
+.tile.pine { background: #2f6a5b; }
+.tile.plum { background: #5c4d7a; }
+.tile.slate { background: #3e4c59; }
+.tile.tide { background: #1f6f8b; }
+.tile.stone { background: #4a5560; }
+.tile.moss { background: #3c5c49; }
+.tile.dusk { background: #2c3a52; }
+.tile.rose { background: #7a4e58; }
+.tile.blue { background: #355c7d; }
+.tile.light { background: rgba(255, 255, 255, 0.12); color: var(--night-ink); }
+
+.sample {
+  margin: 14px 0 0;
+  padding: 14px 16px;
+  max-width: 100%;
+  overflow: auto;
+  background: var(--night);
+  color: var(--night-ink);
+  border-radius: 12px;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+.sample code { background: transparent; padding: 0; color: inherit; }
+
+.js .reveal {
+  opacity: 0;
+  transform: translateY(16px);
+}
+.js .reveal.in {
+  animation: rise 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+}
+.js .reveal.in .draw {
+  stroke-dasharray: 140;
+  stroke-dashoffset: 140;
+  animation: draw 0.9s ease forwards;
+}
+@keyframes rise {
+  to { opacity: 1; transform: none; }
+}
+@keyframes draw {
+  to { stroke-dashoffset: 0; }
+}
 
 .foot {
   padding-top: 28px;
@@ -311,13 +386,22 @@ pre code { background: transparent; padding: 0; color: inherit; }
 
 .foot a { color: var(--ink); }
 
+@media (max-width: 1000px) {
+  .quad { grid-template-columns: 1fr 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .js .reveal { opacity: 1; transform: none; animation: none; }
+  .js .reveal.in .draw { stroke-dashoffset: 0; animation: none; }
+}
+
 @media (max-width: 860px) {
-  .cards, .split, .split.reverse, .export-grid, .hero-grid { grid-template-columns: 1fr; }
+  .cards, .split, .split.reverse, .export-grid, .hero-grid, .pair, .quad { grid-template-columns: 1fr; }
   .split.reverse .copy { order: 0; }
   .nav { padding: 12px 16px; }
   .links { gap: 0; }
   .links a:not(.button) { display: none; }
   .hero { padding-top: 28px; }
-  .band, .install, .faq, .night { padding-top: 48px; padding-bottom: 48px; }
+  .band, .faq, .night { padding-top: 48px; padding-bottom: 48px; }
   .foot { flex-direction: column; }
 }

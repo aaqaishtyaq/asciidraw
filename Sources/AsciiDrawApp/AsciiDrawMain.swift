@@ -9,7 +9,10 @@ struct AsciiDrawMain: App {
     var body: some Scene {
         WindowGroup("AsciiDraw") {
             DocumentScreen()
+                // An open file targets the window that is already open.
+                .handlesExternalEvents(preferring: ["*"], allowing: ["*"])
         }
+        .restorationBehavior(.disabled)
         .defaultSize(width: 1280, height: 800)
         .windowToolbarStyle(.unified(showsTitle: false))
         .commands {
@@ -30,9 +33,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         EditorBridge.shared.stop()
     }
 
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let model = FrontDocument.model else { return .terminateNow }
+        return model.confirmDiscardIfNeeded() ? .terminateNow : .terminateCancel
+    }
+
+    func application(_ sender: NSApplication, openFiles filenames: [String]) {
+        PendingFiles.enqueue(filenames.map { URL(fileURLWithPath: $0) })
+        sender.reply(toOpenOrPrint: .success)
+    }
+
     func application(_ application: NSApplication, open urls: [URL]) {
-        guard let url = urls.first else { return }
-        NotificationCenter.default.post(name: .asciiDrawOpenFile, object: url)
+        PendingFiles.enqueue(urls)
+    }
+}
+
+@MainActor
+enum PendingFiles {
+    private static var queued: [URL] = []
+
+    static func enqueue(_ urls: [URL]) {
+        for url in urls where url.isFileURL {
+            let standard = url.standardizedFileURL
+            if !queued.contains(where: { $0.path == standard.path }) {
+                queued.append(standard)
+            }
+        }
+        NotificationCenter.default.post(name: .asciiDrawOpenFile, object: nil)
+    }
+
+    static func take() -> [URL] {
+        let urls = queued
+        queued.removeAll()
+        return urls
     }
 }
 
@@ -45,6 +78,11 @@ struct AsciiDrawCommands: Commands {
     @ObservedObject private var appearance = AppearanceController.shared
 
     var body: some Commands {
+        CommandGroup(replacing: .appInfo) {
+            Button("About AsciiDraw") {
+                AboutWindow.show()
+            }
+        }
         CommandGroup(replacing: .newItem) {
             Button("New") { model?.newDocument() }
                 .keyboardShortcut("n", modifiers: .command)
